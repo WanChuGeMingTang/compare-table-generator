@@ -1,4 +1,4 @@
-# Comparison Table Generator - Full Featured (V1.0)
+# Comparison Table Generator - Full Featured
 
 [中文](README.md) | **English**
 
