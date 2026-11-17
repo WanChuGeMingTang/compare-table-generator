@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Comparison Table Generator - Full Featured</title>
+<!--
+  ============================================================
+  Comparison Table Generator - Full Featured
+  Made by WanChuGeMingTang - the warmer guide to retro digital fun
+  ============================================================
+  ⚠️ Copyright Notice:
+  Originally developed and shared for free by WanChuGeMingTang.
+  Unauthorized resale, repackaging, or redistribution after
+  removing the credit line is strictly prohibited.
+  ============================================================
+-->
+<style>
+  /* === UI theme variables (--ui-* isolated from table --* to avoid conflicts) ===
+  Switching skins only toggles the .skin-* class on body; all controls read variables. */
+  body{
+    --ui-page-bg:#fafafa;   --ui-text:#1a1a1a;  --ui-panel-bg:#fff;
+    --ui-border:#e5e5e5;    --ui-input-bg:#fff; --ui-input-text:#1a1a1a;
+    --ui-input-border:#ccc; --ui-chip-bg:#f2f4f7;--ui-ghost-bg:#fff;
+    --ui-muted:#999;        --ui-label:#555;    --ui-heading:#333;
+    --ui-accent:#5b9bd5;    --ui-accent-deep:#1f6fb4; --ui-shadow:rgba(0,0,0,.04);
+    font-family:"PingFang SC","Microsoft YaHei",sans-serif;
+    margin:24px; color:var(--ui-text); background:var(--ui-page-bg);
+    transition: background .3s, color .3s;
+  }
+  body.skin-dark{
+    --ui-page-bg:#0f1115;   --ui-text:#e6e6e6;  --ui-panel-bg:#1c1f25;
+    --ui-border:#2e3238;    --ui-input-bg:#24282e;--ui-input-text:#e6e6e6;
+    --ui-input-border:#3c424a;--ui-chip-bg:#24282e;--ui-ghost-bg:transparent;
+    --ui-muted:#7a8088;     --ui-label:#9aa0a6; --ui-heading:#e6e6e6;
+    --ui-accent:#4ea1ff;    --ui-accent-deep:#7cc0ff; --ui-shadow:rgba(0,0,0,.3);
+  }
+  body.skin-business{
+    --ui-page-bg:#f2f6fa;   --ui-text:#0f2b46;  --ui-panel-bg:#fff;
+    --ui-border:#c7d6e5;    --ui-input-bg:#fff; --ui-input-text:#0f2b46;
+    --ui-input-border:#c7d6e5;--ui-chip-bg:#eaf1f8;--ui-ghost-bg:#fff;
+    --ui-muted:#7d92a8;     --ui-label:#3c5a78; --ui-heading:#0f2b46;
+    --ui-accent:#1f5f99;    --ui-accent-deep:#154d7a; --ui-shadow:rgba(31,95,153,.08);
+  }
+  body.skin-morandi{
+    --ui-page-bg:#efece7;   --ui-text:#4a4a48;  --ui-panel-bg:#f7f5f2;
+    --ui-border:#ddd6ce;    --ui-input-bg:#fff; --ui-input-text:#4a4a48;
+    --ui-input-border:#ddd6ce;--ui-chip-bg:#eeeae4;--ui-ghost-bg:#fff;
+    --ui-muted:#a49e96;     --ui-label:#8a857f; --ui-heading:#4a4a48;
+    --ui-accent:#8fa3a8;    --ui-accent-deep:#6b8288; --ui-shadow:rgba(0,0,0,.04);
+  }
+
+  /* === Header & signature styles === */
+  .app-header { text-align: center; margin-bottom: 24px; padding: 30px 0 20px; border-bottom: 1px solid var(--ui-border); }
+  .app-header h1 { margin: 0; font-size: 26px; font-weight: 600; color: var(--ui-text); letter-spacing: 1px; }
+
+  /* Signature area: lines + centered text */
+  .app-header .author {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    margin: 12px 0 8px; font-size: 15px; color: var(--ui-muted); font-weight: 500;
+  }
+  .app-header .author .line {
+    display: inline-block; width: 36px; height: 1px; background: var(--ui-border);
+  }
+  .app-header .author strong { color: var(--ui-accent); font-weight: 600; }
+
+  .app-header .slogan { font-size: 13px; color: var(--ui-muted); letter-spacing: 2px; }
+
+  /* === Global styles === */
+  h3{margin:20px 0 8px;font-size:15px;color:var(--ui-heading)}
+  .field{margin:8px 0}
+  .field label{display:inline-block;width:96px;color:var(--ui-label);font-size:13px}
+  input,select,textarea{padding:5px 8px;border:1px solid var(--ui-input-border);border-radius:4px;font-size:13px;font-family:inherit;background:var(--ui-input-bg);color:var(--ui-input-text)}
+  input.name{width:130px}
+  input.num{width:90px}
+  input.wide{width:440px}
+  table{border-collapse:collapse;font-size:13px}
+  button{padding:6px 14px;margin:4px 8px 4px 0;border:1px solid var(--ui-accent);background:var(--ui-accent);color:#fff;border-radius:6px;cursor:pointer;font-size:13px; transition: all 0.2s;}
+  button:hover { opacity: 0.9; }
+  button.ghost{background:var(--ui-ghost-bg);color:var(--ui-accent)}
+  button.danger{background:var(--ui-ghost-bg);color:#c0392b;border-color:#e0b4ac}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  #outbox{width:100%;height:180px;margin-top:8px;font-family:monospace;font-size:12px;padding:8px;border:1px solid var(--ui-input-border);border-radius:6px;background:var(--ui-input-bg);color:var(--ui-input-text)}
+  .preview{border:1px dashed var(--ui-input-border);padding:12px;margin-top:12px;overflow-x:auto;border-radius:6px}
+  .hint{font-size:12px;color:var(--ui-muted);margin-left:4px}
+  .cols-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+  .cols-wrap .col-item{display:flex;align-items:center;gap:4px;background:var(--ui-chip-bg);padding:4px 8px;border-radius:6px}
+  .col-item input{width:140px}
+  .row-tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:10px 0}
+  .skin-picker{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .skin-picker button{padding:8px 14px;border-radius:8px}
+  .skin-picker button.active{outline:2px solid var(--ui-accent-deep);outline-offset:2px}
+  .panel{background:var(--ui-panel-bg);border:1px solid var(--ui-border);border-radius:10px;padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 3px var(--ui-shadow); transition: background 0.3s, border-color 0.3s;}
+  .col-type{font-size:11px;color:var(--ui-muted);margin-left:2px}
+  .switch{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ui-text);cursor:pointer;user-select:none;margin-right:18px}
+  .switch input{width:auto;accent-color:var(--ui-accent)}
+  .bar-picker{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .bar-picker button{padding:8px 14px;border-radius:8px;background:var(--ui-ghost-bg);color:var(--ui-accent);border:1px solid var(--ui-accent)}
+  .bar-picker button.active{background:var(--ui-accent);color:#fff}
+
+  /* Primary vs secondary buttons */
+  .btn-main { font-size:16px; padding:12px 32px; border-radius:8px; margin-bottom:16px; background:var(--ui-accent); border:none; box-shadow:0 4px 12px var(--ui-shadow); }
+</style>
+</head>
+<body>
+
+<!-- Header & signature -->
+<div class="app-header">
+  <h1>Comparison Table Generator <span style="font-size:.5em;color:#888;">Full Featured</span></h1>
+  <div class="author">
+    <span class="line"></span>
+    <span>Made by <strong>WanChuGeMingTang</strong></span>
+    <span class="line"></span>
+  </div>
+  <div class="slogan">the warmer guide to retro digital fun</div>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">🎨 Themes</h3>
+  <div class="skin-picker" id="skinPicker">
+    <button data-skin="default" onclick="setSkin('default')">Default</button>
+    <button data-skin="dark" onclick="setSkin('dark')">Dark</button>
+    <button data-skin="business" onclick="setSkin('business')">Business Blue</button>
+    <button data-skin="morandi" onclick="setSkin('morandi')">Morandi</button>
+  </div>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">① Table Title / Description</h3>
+  <div class="field"><label>Page Title</label><input class="wide" id="pageTitle" value="3DMark GPU Comparison"></div>
+  <div class="field"><label>Top-left Header</label><input class="wide" id="cornerLabel" value="3DMark"></div>
+  <div class="field">
+    <label>Footer Note</label>
+    <input class="wide" id="noteText" value="Bars: each column is scaled to its own maximum. Percentages: change relative to the first row." placeholder="(leave blank to hide the note)">
+  </div>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">② Columns (add / edit / remove - each: Number or Percentage)</h3>
+  <div class="cols-wrap" id="colsWrap"></div>
+  <button class="ghost" onclick="addCol()">+ Add Column</button>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">③ Rows (first row is the reference)</h3>
+  <table id="inputTable">
+    <thead></thead>
+    <tbody></tbody>
+  </table>
+  <button class="ghost" onclick="addRow()">+ Add Row</button>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">④ Winner Highlight Options</h3>
+  <label class="switch"><input type="checkbox" id="toggleCrown" checked> 👑 Show Crown</label>
+  <label class="switch"><input type="checkbox" id="toggleGold" checked> 🟨 Show Gold Outline</label>
+  <span class="hint">Both can be toggled independently.</span>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">⑤ Energy Bar Styles</h3>
+  <div class="bar-picker" id="barPicker">
+    <button data-bar="classic" onclick="setBar('classic')">Classic Solid</button>
+    <button data-bar="lattice" onclick="setBar('lattice')">Lattice</button>
+    <button data-bar="dots" onclick="setBar('dots')">Dot Capsule</button>
+    <button data-bar="glow" onclick="setBar('glow')">Gradient Glow</button>
+    <button data-bar="thin" onclick="setBar('thin')">Thin Minimal</button>
+  </div>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">⑥ Live Preview</h3>
+  <div class="row-tools">
+    <span class="hint">Tip: click a column header to sort (click again to reverse).</span>
+  </div>
+  <div class="preview" id="preview"></div>
+</div>
+
+<div class="panel" style="text-align:center;">
+  <h3 style="margin-top:0;text-align:left;">⑦ Export & Share</h3>
+  <p class="hint" style="text-align:left;margin-bottom:16px;">Export as PNG for easy sharing or inserting into documents. Export as HTML to keep the data editable and scrollable on mobile.</p>
+  
+  <button onclick="exportPNG()" class="btn-main">
+    📷 Export HD PNG
+  </button>
+  
+  <div style="display:flex; justify-content:center; gap:16px; margin-top:8px;">
+    <button class="ghost" onclick="copyHTML()" style="margin:0;">📋 Copy HTML Code</button>
+    <button class="ghost" onclick="downloadHTML()" style="margin:0;">💾 Download HTML File</button>
+  </div>
+
+  <div style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--ui-border);">
+    <p class="hint" style="text-align:left;margin-bottom:10px;">
+      🧩 Save your usual columns, models, title and styles as a blank template. Next time just fill in the numbers - no need to set everything up again.
+    </p>
+    <button onclick="downloadTemplate()" class="btn-main" style="font-size:14px;padding:10px 24px;">
+      🧩 Save as My Template (just fill in numbers next time)
+    </button>
+  </div>
+  <!-- Hidden textarea for internal temporary data -->
+  <textarea id="outbox" readonly style="display:none;"></textarea>
+</div>
+
+<!-- Template preset data: written by "Save as My Template"; null on normal open -->
+<script id="templateData" type="application/json">null</script>
+
+<script>
+/* ============================================================
+   Copyright & anti-theft marks: console output
+   ============================================================ */
+console.log("%cComparison Table Generator - Full Featured", "font-size: 20px; font-weight: bold; color: #5b9bd5; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);");
+console.log("%cMade by WanChuGeMingTang - the warmer guide to retro digital fun", "font-size: 15px; color: #666; font-weight: bold;");
+
+console.log("%c⚠️ Originally developed by WanChuGeMingTang. Unauthorized resale or redistribution after removing the credit line is prohibited.", "color: #c0392b; font-weight: bold; font-size: 12px;");
+
+/* ================= Skin definitions ================= */
+const SKINS = {
+  default: {
+    label:'Default',
+    vars:{
+      '--bg':'#ffffff','--text':'#1a1a1a','--th':'#666','--th-border':'#d9d9d9','--td-border':'#eee',
+      '--base-fill':'#9e9e9e','--cmp-fill':'#5b9bd5','--track':'#f0f0f0',
+      '--base-name':'#333','--cmp-name':'#1f6fb4','--note':'#999',
+      '--up-bg':'#e6f4ea','--up-fg':'#2e7d32','--down-bg':'#fdece5','--down-fg':'#bf5b3a',
+      '--gold':'#d4a017','--crown':'#e6b422',
+      '--bar-glow':'#82b8e6','--bar-dot':'#5b9bd5','--bar-base-dot':'#9e9e9e',
+      '--base-glow':'#c2c2c2'
+    }
+  },
+  dark: {
+    label:'Dark',
+    vars:{
+      '--bg':'#16181d','--text':'#e6e6e6','--th':'#9aa0a6','--th-border':'#2e3238','--td-border':'#262a30',
+      '--base-fill':'#5c5f66','--cmp-fill':'#4ea1ff','--track':'#2a2e35',
+      '--base-name':'#c9cdd2','--cmp-name':'#7cc0ff','--note':'#7a8088',
+      '--up-bg':'#173226','--up-fg':'#4ade80','--down-bg':'#3a2420','--down-fg':'#ff9b7a',
+      '--gold':'#f0c040','--crown':'#ffd75e',
+      '--bar-glow':'#6bb6ff','--bar-dot':'#4ea1ff','--bar-base-dot':'#5c5f66',
+      '--base-glow':'#8b8f96'
+    }
+  },
+  business: {
+    label:'Business Blue',
+    vars:{
+      '--bg':'#ffffff','--text':'#0f2b46','--th':'#3c5a78','--th-border':'#c7d6e5','--td-border':'#e3ecf5',
+      '--base-fill':'#8fa8c2','--cmp-fill':'#1f5f99','--track':'#eaf1f8',
+      '--base-name':'#1f3a52','--cmp-name':'#154d7a','--note':'#7d92a8',
+      '--up-bg':'#e3f0fa','--up-fg':'#12588f','--down-bg':'#fbe9e4','--down-fg':'#b0523a',
+      '--gold':'#b8860b','--crown':'#d4a017',
+      '--bar-glow':'#4a8fcc','--bar-dot':'#1f5f99','--bar-base-dot':'#8fa8c2',
+      '--base-glow':'#b3c5d6'
+    }
+  },
+  morandi: {
+    label:'Morandi',
+    vars:{
+      '--bg':'#f7f5f2','--text':'#4a4a48','--th':'#8a857f','--th-border':'#ddd6ce','--td-border':'#ece7e1',
+      '--base-fill':'#b8b0a6','--cmp-fill':'#8fa3a8','--track':'#eeeae4',
+      '--base-name':'#5c5852','--cmp-name':'#6b8288','--note':'#a49e96',
+      '--up-bg':'#e4ebe3','--up-fg':'#5c7d5e','--down-bg':'#f0e4de','--down-fg':'#a8735c',
+      '--gold':'#b89b6a','--crown':'#c9a96e',
+      '--bar-glow':'#9db8bc','--bar-dot':'#8fa3a8','--bar-base-dot':'#b8b0a6',
+      '--base-glow':'#d2cbc2'
+    }
+  }
+};
+let currentSkin = 'default';
+let currentBar = 'classic';
+
+function setSkin(name){
+  currentSkin = name;
+  document.querySelectorAll('#skinPicker button').forEach(b=>b.classList.toggle('active', b.dataset.skin===name));
+  // UI theme: only toggle body classes; colors are handled by CSS variables.
+  document.body.classList.remove('skin-default','skin-dark','skin-business','skin-morandi');
+  document.body.classList.add('skin-' + name);
+  render();
+}
+
+function setBar(name){
+  currentBar = name;
+  document.querySelectorAll('#barPicker button').forEach(b=>b.classList.toggle('active', b.dataset.bar===name));
+  updatePreview();
+}
+
+/* ================= State ================= */
+let state = {
+  pageTitle:'3DMark GPU Comparison',
+  cornerLabel:'3DMark',
+  note:'Bars: each column is scaled to its own maximum. Percentages: change relative to the first row.',
+  cols:[
+    {name:'Time Spy', type:'number'},
+    {name:'Time Spy Extreme', type:'number'},
+    {name:'Steel Nomad', type:'number'},
+    {name:'Fire Strike', type:'number'},
+    {name:'Fire Strike Extreme', type:'number'},
+    {name:'Fire Strike Ultra', type:'number'}
+  ],
+  rows:[
+    {name:'P104 Gen2 x16', v:[6403,2962,1499,19509,9509,4674]},
+    {name:'GTX 1070',      v:[6123,2781,1377,17436,8371,4165]},
+    {name:'GTX 1070 Ti',   v:[6873,3116,1449,19876,9453,4962]},
+    {name:'GTX 1080',      v:[7592,3410,1649,22186,10660,5350]}
+  ],
+  sort:{col:-1, dir:1},
+  showCrown:true,
+  showGold:true
+};
+
+// Drawing data model filled during render: preview and PNG export share the same results,
+// avoiding fragile DOM string parsing (.badge/.crown/boxShadow) at export time.
+let lastModel = { cells:{} };
+
+/* ================= Top field bindings ================= */
+const pt = document.getElementById('pageTitle');
+const cl = document.getElementById('cornerLabel');
+const nt = document.getElementById('noteText');
+pt.oninput = ()=>{ state.pageTitle = pt.value; updatePreview(); };
+cl.oninput = ()=>{ state.cornerLabel = cl.value; updatePreview(); };
+nt.oninput = ()=>{ state.note = nt.value; updatePreview(); };
+
+/* ================= Highlight toggle bindings ================= */
+const tCrown = document.getElementById('toggleCrown');
+const tGold  = document.getElementById('toggleGold');
+tCrown.onchange = ()=>{ state.showCrown = tCrown.checked; updatePreview(); };
+tGold.onchange  = ()=>{ state.showGold  = tGold.checked;  updatePreview(); };
+
+/* ================= Column management ================= */
+function renderCols(){
+  const wrap = document.getElementById('colsWrap');
+  wrap.innerHTML = state.cols.map((c,i)=>`
+    <div class="col-item">
+      <input value="${escAttr(c.name)}" oninput="state.cols[${i}].name=this.value; updatePreview()">
+      <select onchange="state.cols[${i}].type=this.value; render()">
+        <option value="number" ${c.type==='number'?'selected':''}>Number</option>
+        <option value="percent" ${c.type==='percent'?'selected':''}>Percentage</option>
+      </select>
+      <button class="danger" onclick="removeCol(${i})">×</button>
+    </div>`).join('');
+}
+function addCol(){
+  state.cols.push({name:'New Metric', type:'number'});
+  state.rows.forEach(r=>r.v.push(0));
+  render();
+}
+function removeCol(i){
+  if(state.cols.length<=1){ alert('Keep at least one column.'); return; }
+  state.cols.splice(i,1);
+  state.rows.forEach(r=>r.v.splice(i,1));
+  if(state.sort.col===i) state.sort={col:-1,dir:1};
+  else if(state.sort.col>i) state.sort.col--;
+  render();
+}
+
+/* ================= Row management ================= */
+function renderInput(){
+  const thead = document.querySelector('#inputTable thead');
+  const tbody = document.querySelector('#inputTable tbody');
+  thead.innerHTML = `<tr><th></th><th>Name</th>${state.cols.map(c=>`<th>${escHTML(c.name)}<span class="col-type">(${c.type==='percent'?'%':'Number'})</span></th>`).join('')}<th></th></tr>`;
+  tbody.innerHTML = state.rows.map((r,i)=>`
+    <tr>
+      <td>${i===0?'REF':'&nbsp;'}</td>
+      <td><input class="name" value="${escAttr(r.name)}" oninput="state.rows[${i}].name=this.value; updatePreview()"></td>
+      ${state.cols.map((c,j)=>`<td><input class="num" type="number" step="any" value="${r.v[j]}" oninput="state.rows[${i}].v[${j}]=+this.value; updatePreview()"></td>`).join('')}
+      <td><button class="danger" onclick="removeRow(${i})" ${state.rows.length<=2?'disabled':''}>Delete</button></td>
+    </tr>`).join('');
+}
+function addRow(){
+  state.rows.push({name:'New GPU', v:state.cols.map(()=>0)});
+  render();
+}
+function removeRow(i){
+  if(state.rows.length<=2){ alert('Keep at least two rows (including the reference).'); return; }
+  state.rows.splice(i,1);
+  render();
+}
+
+/* ================= Utility functions ================= */
+function escHTML(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escAttr(s){ return escHTML(s); }
+function fmtNum(n){
+  const num = Number(n)||0;
+  return Number.isInteger(num) ? num.toLocaleString('en-US') : num.toLocaleString('en-US',{maximumFractionDigits:2});
+}
+function fmtVal(raw, type){
+  const val = Number(raw)||0;
+  return type==='percent' ? (val + '%') : fmtNum(val);
+}
+
+/* ================= Sorting ================= */
+function handleSort(j){
+  if(state.sort.col===j){
+    if(state.sort.dir===1) state.sort.dir=-1;
+    else state.sort={col:-1,dir:1};
+  }else{
+    state.sort={col:j, dir:-1};
+  }
+  updatePreview();
+}
+
+/* ================= Energy bar inner HTML ================= */
+function buildBarInner(pct, isBase){
+  const p = Math.max(0, Math.min(100, pct));
+  const color = isBase ? 'var(--base-fill)' : 'var(--cmp-fill)';
+  const glowEnd = isBase ? 'var(--base-glow)' : 'var(--bar-glow)';
+
+  if(currentBar === 'classic'){
+    return `<div class="fill" style="width:${p}%"></div>`;
+  }
+  if(currentBar === 'lattice'){
+    return `<div class="lattice-fill" style="width:${p}%"></div>`;
+  }
+  if(currentBar === 'dots'){
+    const dotSize = 8, gap = 5, step = dotSize + gap;
+    const approxW = 260;
+    const count = Math.ceil(approxW / step) + 1;
+    let dots = '';
+    for(let i=0;i<count;i++){
+      dots += `<span class="dot ${isBase?'base':''}" style="left:${i*step}px"></span>`;
+    }
+    return `<div class="dots-mask" style="width:${p}%">${dots}</div>`;
+  }
+  if(currentBar === 'glow'){
+    return `<div class="fill glow-fill" style="width:${p}%;background:linear-gradient(90deg, ${color} 0%, ${glowEnd} 100%)"></div>`;
+  }
+  if(currentBar === 'thin'){
+    return `<div class="fill thin-fill" style="width:${p}%;background:${color}"></div>`;
+  }
+  return `<div class="fill" style="width:${p}%"></div>`;
+}
+
+/* ================= Style block (shared by preview & export) ================= */
+function buildStyleBlock(skin, bar){
+  const varStyle = Object.entries(skin).map(([k,v])=>`${k}:${v};`).join('');
+  let css = `
+    .table-root{${varStyle}font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--text);}
+    table{border-collapse:collapse;width:100%;min-width:860px;font-size:13px;table-layout:auto;}
+    th{text-align:center;padding:8px;border-bottom:1px solid var(--th-border);color:var(--th);font-weight:500;}
+    th:first-child{text-align:left;}
+    td{padding:8px;vertical-align:middle;border-bottom:1px solid var(--td-border);}
+    td:first-child{font-weight:600;white-space:nowrap;}
+    .val{display:flex;justify-content:space-between;align-items:center;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;margin-bottom:5px;}
+    .track{height:8px;border-radius:4px;background:var(--track);overflow:hidden;position:relative;}
+    .fill{height:100%;border-radius:4px;transition:width .2s;}
+    .base .fill{background:var(--base-fill);}
+    .cmp .fill{background:var(--cmp-fill);}
+    .base td:first-child{color:var(--base-name);}
+    .cmp td:first-child{color:var(--cmp-name);}
+    .badge{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;font-size:11px;font-weight:500;}
+    .up{background:var(--up-bg);color:var(--up-fg);}
+    .down{background:var(--down-bg);color:var(--down-fg);}
+    .crown{font-size:12px;margin-left:4px;filter:drop-shadow(0 0 2px rgba(0,0,0,.15));}
+    .note{margin-top:10px;font-size:12px;color:var(--note);}
+  `;
+
+  if(bar === 'lattice'){
+    css += `
+      .track{height:10px;border-radius:5px;background:var(--track);overflow:hidden;position:relative;}
+      .lattice-fill{position:absolute;top:0;bottom:0;left:0;border-radius:5px;
+        background-image:repeating-linear-gradient(90deg,
+          var(--cmp-fill) 0 9px, transparent 9px 12px);
+      }
+      .base .lattice-fill{background-image:repeating-linear-gradient(90deg,
+          var(--base-fill) 0 9px, transparent 9px 12px);}
+      .track::after{content:'';position:absolute;inset:0;pointer-events:none;
+        background:repeating-linear-gradient(90deg,
+          transparent 0 9px, rgba(255,255,255,.22) 9px 10px, transparent 10px 12px);}
+    `;
+  }
+
+  if(bar === 'dots'){
+    css += `
+      .track{height:10px;border-radius:5px;background:var(--track);overflow:hidden;position:relative;}
+      .dots-mask{position:absolute;top:0;bottom:0;left:0;overflow:hidden;border-radius:5px;}
+      .dot{position:absolute;top:50%;transform:translateY(-50%);width:8px;height:8px;border-radius:50%;background:var(--cmp-fill);}
+      .dot.base{background:var(--base-fill);}
+    `;
+  }
+
+  if(bar === 'glow'){
+    css += `
+      .track{height:10px;border-radius:5px;background:var(--track);overflow:hidden;position:relative;}
+      .glow-fill{position:relative;border-radius:5px;}
+      .cmp .glow-fill{box-shadow:0 0 6px var(--bar-glow);}
+      .base .glow-fill{box-shadow:0 0 4px var(--base-glow);}
+      .glow-fill::after{content:'';position:absolute;top:0;bottom:0;right:0;width:24px;
+        background:linear-gradient(90deg, transparent, rgba(255,255,255,.55));border-radius:5px;}
+    `;
+  }
+
+  if(bar === 'thin'){
+    css += `
+      .track{height:4px;border-radius:2px;background:var(--track);overflow:hidden;position:relative;}
+      .thin-fill{height:100%;border-radius:2px;}
+    `;
+  }
+
+  return css;
+}
+
+/* ================= Auto-width calculation for first column ================= */
+const _measureCanvas = document.createElement('canvas'); // Reuse canvas to avoid recreating on every input
+function computeFirstColWidth(){
+  const ctx = _measureCanvas.getContext('2d');
+  ctx.font = '600 13px "PingFang SC","Microsoft YaHei",sans-serif';
+
+  let maxW = ctx.measureText(state.cornerLabel || '').width;
+  state.rows.forEach(r=>{
+    const w = ctx.measureText(r.name || '').width;
+    if(w > maxW) maxW = w;
+  });
+
+  return Math.ceil(maxW + 8 + 8 + 12);
+}
+
+/* ================= Renderer: preview only ================= */
+function updatePreview(){
+  const skin = SKINS[currentSkin].vars;
+
+  const maxs = state.cols.map((c,j)=>{
+    const vals = state.rows.map(r=>Number(r.v[j])||0);
+    return Math.max(...vals, 0) || 1;
+  });
+
+  let order = state.rows.map((r,i)=>i);
+  if(state.sort.col>=0){
+    const j = state.sort.col, dir = state.sort.dir;
+    order.sort((a,b)=>{
+      const va = Number(state.rows[a].v[j])||0;
+      const vb = Number(state.rows[b].v[j])||0;
+      return (va-vb)*dir;
+    });
+  }
+
+  const maxRowIdxPerCol = state.cols.map((_,j)=>{
+    let mi=0, mv=-Infinity;
+    state.rows.forEach((r,i)=>{
+      const val = Number(r.v[j])||0;
+      if(val>mv){ mv=val; mi=i; }
+    });
+    return mi;
+  });
+
+  const base = state.rows[0].v.map(Number);
+  const firstColW = computeFirstColWidth();
+
+  const headCells = state.cols.map((c,j)=>{
+    const active = state.sort.col===j;
+    const arrow = active ? (state.sort.dir===-1?' ▼':' ▲') : '';
+    return `<th style="cursor:pointer" onclick="handleSort(${j})" title="Click to sort">${escHTML(c.name)}${arrow}</th>`;
+  }).join('');
+
+  const modelRows = []; // Drawing data reused by PNG export (same order as display)
+  const bodyRows = order.map((idx)=>{
+    const r = state.rows[idx];
+    const isBase = idx===0;
+    const cls = isBase?'base':'cmp';
+    const modelCells = [];
+    const cells = r.v.map((raw,j)=>{
+      const val = Number(raw)||0;
+      const max = maxs[j];
+      const w = +Math.max(0, Math.min(100, (val/max*100))).toFixed(1);
+
+      const isColMax = (idx === maxRowIdxPerCol[j]);
+      const hasCrown = isColMax && state.showCrown;
+      const hasGold  = isColMax && state.showGold;
+      const crown = hasCrown ? '<span class="crown" title="Highest in column">👑</span>' : '';
+      const goldRing = hasGold ? 'box-shadow: inset 0 0 0 2px var(--gold);' : '';
+
+      let badge = '', badgeText = '', badgeUp = true;
+      if(!isBase){
+        const b = Number(base[j])||0;
+        const pct = b===0 ? 0 : Math.round(val/b*100-100);
+        badgeUp = pct>=0;
+        const sign = pct>0?'+':'';
+        const arrow = pct>0 ? '▲' : (pct<0 ? '▼' : '');
+        badgeText = `${arrow ? arrow+' ' : ''}${sign}${pct}%`;
+        badge = `<span class="badge ${badgeUp?'up':'down'}">${badgeText}</span>`;
+      }
+      const valText = fmtVal(val, state.cols[j].type);
+      const barInner = buildBarInner(w, isBase);
+
+      modelCells.push({ valText, badgeText, badgeUp, hasCrown, hasGold, pct:w, isBase });
+
+      const leftWrap = `<div style="display:flex;align-items:center"><span class="text-val">${valText}</span>${crown}</div>`;
+      const rightWrap = badge ? `<div>${badge}</div>` : '';
+
+      return `<td class="${isColMax?'is-best':''}" style="${goldRing}"><div class="val">${leftWrap}${rightWrap}</div><div class="track">${barInner}</div></td>`;
+    }).join('');
+    modelRows.push({ name: r.name, isBase, cells: modelCells });
+    return `<tr class="${cls}"><td>${escHTML(r.name)}</td>${cells}</tr>`;
+  }).join('');
+  lastModel = { rows: modelRows, headers: state.cols.map(c=>c.name), corner: state.cornerLabel };
+
+  const tableHTML =
+`<table>
+  <colgroup>
+    <col style="width:${firstColW}px">
+    ${state.cols.map(()=>`<col>`).join('')}
+  </colgroup>
+  <thead><tr>
+    <th>${escHTML(state.cornerLabel)}</th>${headCells}
+  </tr></thead>
+  <tbody>
+${bodyRows}
+  </tbody>
+</table>`;
+
+  const css = buildStyleBlock(skin, currentBar);
+
+  const previewHTML = `
+    <div class="preview-holder">
+      <style>${css}</style>
+      <div class="table-root" style="padding:14px;border-radius:8px;">
+        ${tableHTML}
+        ${state.note ? `<div class="note">${escHTML(state.note)}</div>` : ''}
+      </div>
+    </div>`;
+  document.getElementById('preview').innerHTML = previewHTML;
+
+  document.getElementById('outbox').value = buildFullHTML(tableHTML, css);
+}
+
+function render(){
+  renderCols();
+  renderInput();
+  updatePreview();
+}
+
+/* ================= Export HTML (inject anti-theft comment marks) ================= */
+function buildFullHTML(tableHTML, css){
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>${escHTML(state.pageTitle)}</title>
+<!--
+  ============================================================
+  Comparison Table Generator - Full Featured
+  Made by WanChuGeMingTang - the warmer guide to retro digital fun
+  ============================================================
+  ⚠️ Copyright Notice:
+  This table was generated by Comparison Table Generator,
+  made by WanChuGeMingTang. Feel free to use the generated
+  tables, but please do not resell the generator source code.
+  ============================================================
+-->
+<style>${css}</style>
+</head>
+<body class="table-root" style="margin:24px;">
+${tableHTML}
+${state.note ? `<div class="note">${escHTML(state.note)}</div>` : ''}
+<!-- Made by WanChuGeMingTang - the warmer guide to retro digital fun -->
+</body>
+</html>`;
+}
+
+async function copyHTML(){
+  const text = document.getElementById('outbox').value;
+  try{
+    // Modern API (with fallback, as some browsers block it under file://)
+    if(navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(text);
+    }else{
+      const t = document.getElementById('outbox');
+      t.style.display = 'block';
+      t.select();
+      const ok = document.execCommand('copy');
+      t.style.display = 'none';
+      if(!ok) throw new Error('copy failed');
+    }
+    alert('✅ Full HTML code copied!\nYou can paste it into your website or blog.');
+  }catch(e){
+    alert('⚠️ Auto-copy failed. Please use Download HTML File, or select and copy manually.');
+  }
+}
+function downloadHTML(){
+  const blob = new Blob([document.getElementById('outbox').value], {type:'text/html;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (state.pageTitle || 'Comparison Table') + '.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href), 3000); // Delayed revoke to avoid download failures in some browsers
+}
+
+/* ================= Save as My Template =================
+ Export a pre-configured generator: keeps columns/row names/title/note/skin/bar/highlights,
+ but clears all values. Open it next time and just fill in the numbers.
+ Implementation: reuse full page source, inject config into #templateData. Single-file, offline. */
+function downloadTemplate(){
+  // 1) Extract current config, clear values (keep row names & column structure)
+  const preset = {
+    state: {
+      pageTitle: state.pageTitle,
+      cornerLabel: state.cornerLabel,
+      note: state.note,
+      cols: state.cols.map(c=>({name:c.name, type:c.type})),
+      rows: state.rows.map(r=>({name:r.name, v:r.v.map(()=>0)})),
+      showCrown: state.showCrown,
+      showGold: state.showGold
+    },
+    skin: currentSkin,
+    bar: currentBar
+  };
+  const presetJSON = JSON.stringify(preset).replace(/</g, '\\u003c'); // Escape angle brackets to avoid breaking script tags
+
+  // 2) Take full page source (doctype + documentElement) and inject preset into #templateData
+  let src = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  const re = /(<script id="templateData" type="application\/json">)[\s\S]*?(<\/script>)/;
+  if(!re.test(src)){
+    alert('⚠️ Unexpected template structure. Please use the full generator file.');
+    return;
+  }
+  src = src.replace(re, (m, a, b)=>a + presetJSON + b);
+
+  // 3) Download
+  const blob = new Blob([src], {type:'text/html;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (state.pageTitle || 'Comparison Table') + '_my-template.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+  alert('✅ Template saved!\nOpen this HTML next time - your columns and models are ready, just fill in the numbers.');
+}
+
+/* ================= Export PNG (Canvas drawing + subtle watermark) =================
+ Zero-dependency manual Canvas drawing for offline use and cross-browser stability.
+ Key: all cell text/crowns/outlines/badges/bar widths come from lastModel —
+ the same results as the preview, no fragile DOM string parsing. */
+function exportPNG(){
+  const table = document.querySelector('#preview table');
+  if(!table || !lastModel.rows.length){ alert('Please preview first'); return; }
+
+  const skin = SKINS[currentSkin].vars;
+  const col = (name)=>skin[name] || '#000';
+
+  const rect = table.getBoundingClientRect();
+  const padding = 28;
+  const extraNoteHeight = state.note ? 28 : 0;
+  // Reserve extra 20px at bottom for the subtle watermark
+  const W = Math.ceil(rect.width) + padding*2;
+  const H = Math.ceil(rect.height) + padding*2 + extraNoteHeight + 20;
+
+  const scale = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = W * scale;
+  canvas.height = H * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = col('--bg');
+  ctx.fillRect(0, 0, W, H);
+  ctx.textBaseline = 'middle';
+
+  const FONT = (w,s)=>`${w} ${s}px "PingFang SC","Microsoft YaHei",sans-serif`;
+
+  function drawText(text, x, y, font, color, align='left'){
+    ctx.font = font;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.fillText(text, x, y);
+    ctx.textAlign = 'left';
+  }
+
+  /* ---- Column widths: read real DOM widths, normalize by canvas width ---- */
+  const ths = table.querySelectorAll('thead th');
+  const colWidths = [];
+  table.querySelectorAll('colgroup col').forEach(c=>colWidths.push(parseFloat(c.style.width)||0));
+  ths.forEach((th,i)=>{ if(!colWidths[i]) colWidths[i] = th.getBoundingClientRect().width; });
+  const domTotal = colWidths.reduce((a,b)=>a+b,0);
+  if(domTotal > 0 && Math.abs(domTotal - rect.width) > 1){
+    const ratio = rect.width / domTotal;
+    for(let i=0;i<colWidths.length;i++) colWidths[i] *= ratio;
+  }
+
+  const startX = padding, startY = padding;
+
+  /* ---- Table header ---- */
+  const headerH = ths.length ? ths[0].getBoundingClientRect().height : 30;
+  const headers = [lastModel.corner].concat(lastModel.headers);
+  let x = startX;
+  const headY = startY + headerH/2;
+  headers.forEach((txt, j)=>{
+    const w = colWidths[j];
+    drawText(txt, j===0 ? x+8 : x+w/2, headY,
+             FONT(500,13), col('--th'), j===0 ? 'left':'center');
+    ctx.beginPath();
+    ctx.strokeStyle = col('--th-border');
+    ctx.lineWidth = 1;
+    ctx.moveTo(x, startY+headerH);
+    ctx.lineTo(x+w, startY+headerH);
+    ctx.stroke();
+    x += w;
+  });
+
+  /* ---- Data rows: read each row real height ---- */
+  const trEls = table.querySelectorAll('tbody tr');
+  let rowY = startY + headerH;
+  trEls.forEach((tr, ri)=>{
+    const rowH = tr.getBoundingClientRect().height || 44;
+    const mRow = lastModel.rows[ri];
+    let cellX = startX;
+
+    for(let j=0;j<colWidths.length;j++){
+      const w = colWidths[j] || 100;
+      // Name column j=0; data columns j>=1 map to model.cells[j-1]
+      if(j === 0){
+        const nameColor = mRow.isBase ? col('--base-name') : col('--cmp-name');
+        drawText(mRow.name, cellX+8, rowY+rowH/2, FONT(600,13), nameColor, 'left');
+      }else{
+        const m = mRow.cells[j-1];
+        if(m){
+          const numY = rowY + rowH/2 - 6;
+          ctx.font = FONT(600,13);
+          ctx.fillStyle = col('--text');
+          ctx.textAlign = 'left';
+          let drawX = cellX + 12;
+          ctx.fillText(m.valText, drawX, numY);
+          const fullWidth = ctx.measureText(m.valText).width;
+
+          // Crown: draw emoji 👑 to match the preview
+          if(m.hasCrown){
+            drawCrown(ctx, drawX + fullWidth + 6, numY, col('--crown'));
+          }
+
+          // Badge: size by measured text width to avoid overflow
+          if(m.badgeText){
+            ctx.font = FONT(500,11);
+            const bw = Math.ceil(ctx.measureText(m.badgeText).width) + 14;
+            const bh = 18;
+            const bx = cellX + w - bw - 12;
+            const by = numY - 9;
+            roundRect(ctx, bx, by, bw, bh, 6);
+            ctx.fillStyle = m.badgeUp ? col('--up-bg') : col('--down-bg');
+            ctx.fill();
+            ctx.fillStyle = m.badgeUp ? col('--up-fg') : col('--down-fg');
+            ctx.textAlign = 'center';
+            ctx.fillText(m.badgeText, bx + bw/2, by + bh/2 + 0.5);
+            ctx.textAlign = 'left';
+          }
+
+          // Energy bar: width taken from model percentage
+          const fillEl = tr.querySelectorAll('td')[j]?.querySelector('.fill, .lattice-fill, .dots-mask, .thin-fill');
+          if(fillEl){
+            const barH = (currentBar === 'thin') ? 4 : 10;
+            const barY = rowY + rowH - 16;
+            const barW = w - 24;
+            const barX = cellX + 12;
+            const pct = m.pct;
+
+            roundRect(ctx, barX, barY, barW, barH, barH/2);
+            ctx.fillStyle = col('--track');
+            ctx.fill();
+
+            const filledW = barW * pct / 100;
+            if(filledW > 0){
+              const fillColor = m.isBase ? col('--base-fill') : col('--cmp-fill');
+              ctx.save();
+              roundRect(ctx, barX, barY, barW, barH, barH/2);
+              ctx.clip();
+
+              if(currentBar === 'lattice'){
+                ctx.fillStyle = fillColor;
+                for(let cx=0; cx<filledW; cx+=12) ctx.fillRect(barX+cx, barY, Math.min(9, filledW-cx), barH);
+              }else if(currentBar === 'dots'){
+                ctx.fillStyle = fillColor;
+                for(let cx=4; cx-4<filledW; cx+=13){
+                  ctx.beginPath();
+                  ctx.arc(barX+cx, barY+barH/2, 4, 0, Math.PI*2);
+                  ctx.fill();
+                }
+              }else if(currentBar === 'glow'){
+                const grad = ctx.createLinearGradient(barX, 0, barX+filledW, 0);
+                grad.addColorStop(0, fillColor);
+                grad.addColorStop(1, m.isBase ? col('--base-glow') : col('--bar-glow'));
+                ctx.fillStyle = grad;
+                ctx.fillRect(barX, barY, filledW, barH);
+              }else{
+                ctx.fillStyle = fillColor;
+                ctx.fillRect(barX, barY, filledW, barH);
+              }
+              ctx.restore();
+            }
+          }
+
+          // Gold outline: from model, not boxShadow string matching
+          if(m.hasGold){
+            ctx.strokeStyle = col('--gold');
+            ctx.lineWidth = 2;
+            ctx.strokeRect(cellX+1, rowY+1, w-2, rowH-2);
+          }
+        }
+      }
+
+      ctx.beginPath();
+      ctx.strokeStyle = col('--td-border');
+      ctx.lineWidth = 1;
+      ctx.moveTo(cellX, rowY+rowH);
+      ctx.lineTo(cellX+w, rowY+rowH);
+      ctx.stroke();
+      cellX += w;
+    }
+    rowY += rowH;
+  });
+
+  if(state.note){
+    ctx.font = FONT(400,12);
+    ctx.fillStyle = col('--note');
+    ctx.textAlign = 'left';
+    ctx.fillText(state.note, startX, rowY + 18);
+  }
+
+  /* ============================================================
+     Anti-theft subtle watermark: faint credit at bottom-right
+     ============================================================ */
+  ctx.font = FONT(400,10);
+  ctx.fillStyle = currentSkin === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)';
+  ctx.textAlign = 'right';
+  ctx.fillText('Made by WanChuGeMingTang', W - padding, H - 14);
+  ctx.textAlign = 'left';
+
+  function roundRect(ctx, x, y, w, h, r){
+    if(h < 2*r) r = h/2;
+    if(w < 2*r) r = w/2;
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+  // Small crown: draw emoji 👑 to match the page preview
+  function drawCrown(ctx, cx, cy, color){
+    ctx.save();
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.font = '13px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+    ctx.fillText('👑', cx, cy);
+    ctx.restore();
+  }
+
+  canvas.toBlob(function(blob){
+    if(!blob){ alert('Failed to generate image. Please retry or try another browser.'); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (state.pageTitle || 'Comparison Table') + '.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+  }, 'image/png');
+}
+
+/* ================= Init (compatible with "My Template" preset) ================= */
+(function initFromTemplate(){
+  const el = document.getElementById('templateData');
+  if(!el) return;
+  let preset = null;
+  try{ preset = JSON.parse(el.textContent || 'null'); }catch(e){ preset = null; }
+  if(preset && preset.state){
+    const s = preset.state;
+    if(Array.isArray(s.cols) && s.cols.length) state.cols = s.cols;
+    if(Array.isArray(s.rows) && s.rows.length) state.rows = s.rows;
+    if(typeof s.pageTitle==='string') state.pageTitle = s.pageTitle;
+    if(typeof s.cornerLabel==='string') state.cornerLabel = s.cornerLabel;
+    if(typeof s.note==='string') state.note = s.note;
+    if(typeof s.showCrown==='boolean') state.showCrown = s.showCrown;
+    if(typeof s.showGold==='boolean') state.showGold = s.showGold;
+    if(SKINS[preset.skin]) currentSkin = preset.skin;
+    if(['classic','lattice','dots','glow','thin'].includes(preset.bar)) currentBar = preset.bar;
+  }
+})();
+
+pt.value = state.pageTitle;
+cl.value = state.cornerLabel;
+nt.value = state.note;
+tCrown.checked = state.showCrown;
+tGold.checked = state.showGold;
+// Sync skin/bar active state (templates may carry their own style)
+document.body.classList.remove('skin-default','skin-dark','skin-business','skin-morandi');
+document.body.classList.add('skin-' + currentSkin);
+document.querySelectorAll('#skinPicker button').forEach(b=>b.classList.toggle('active', b.dataset.skin===currentSkin));
+document.querySelectorAll('#barPicker button').forEach(b=>b.classList.toggle('active', b.dataset.bar===currentBar));
+render();
+</script>
+</body>
+</html>
