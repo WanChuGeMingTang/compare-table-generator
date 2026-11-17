@@ -1,5 +1,7 @@
 # Comparison Table Generator - Full Featured (V1.0)
 
+[中文](README.md) | **English**
+
 > Made by WanChuGeMingTang - the warmer guide to retro digital fun
 
 A pure front-end, zero-dependency, offline-capable comparison table generator. Enter your numbers and it automatically builds a table with energy bars, winner highlighting, and relative change percentages. Export it as a high-resolution PNG or a standalone HTML page.
