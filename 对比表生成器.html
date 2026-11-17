@@ -109,7 +109,6 @@
 <!-- 题头与签名 -->
 <div class="app-header">
   <h1>对比表生成器 · 全功能版</h1>
-  <div style="text-align:center;font-size:11px;color:#aaa;letter-spacing:1px;margin-top:6px;">V1.0</div>
   <div class="author">
     <span class="line"></span>
     <span>由 <strong>玩出个名堂</strong> 敬制</span>
@@ -191,9 +190,21 @@
     <button class="ghost" onclick="copyHTML()" style="margin:0;">📋 复制 HTML 代码</button>
     <button class="ghost" onclick="downloadHTML()" style="margin:0;">💾 下载网页文件</button>
   </div>
+
+  <div style="margin-top:18px;padding-top:14px;border-top:1px dashed var(--ui-border);">
+    <p class="hint" style="text-align:left;margin-bottom:10px;">
+      🧩 把你常用的列名、型号、标题与样式保存成一份「空白模板」，下次打开只填数值即可套用，无需每次重设。
+    </p>
+    <button onclick="downloadTemplate()" class="btn-main" style="font-size:14px;padding:10px 24px;">
+      🧩 保存为我的模板（下次直接填数值）
+    </button>
+  </div>
   <!-- 隐藏原来的 textarea，仅用于后台暂存数据 -->
   <textarea id="outbox" readonly style="display:none;"></textarea>
 </div>
+
+<!-- 模板预设数据：由「保存为我的模板」写入；普通打开时为 null -->
+<script id="templateData" type="application/json">null</script>
 
 <script>
 /* ============================================================
@@ -675,6 +686,48 @@ function downloadHTML(){
   setTimeout(()=>URL.revokeObjectURL(a.href), 3000); // 延迟释放，避免部分浏览器下载失败
 }
 
+/* ================= 保存为我的模板 =================
+   导出一份「预配置好的生成器」：保留列名/行名/标题/说明/皮肤/能量条/高亮开关，
+   但把所有数值清空。下次打开这份 HTML，直接填数值即可，无需每次重设结构。
+   实现：复用当前页面完整源码，仅把配置注入 #templateData。单文件、离线可用。 */
+function downloadTemplate(){
+  // 1) 抽出当前配置，数值清零（保留行名与列结构）
+  const preset = {
+    state: {
+      pageTitle: state.pageTitle,
+      cornerLabel: state.cornerLabel,
+      note: state.note,
+      cols: state.cols.map(c=>({name:c.name, type:c.type})),
+      rows: state.rows.map(r=>({name:r.name, v:r.v.map(()=>0)})),
+      showCrown: state.showCrown,
+      showGold: state.showGold
+    },
+    skin: currentSkin,
+    bar: currentBar
+  };
+  const presetJSON = JSON.stringify(preset).replace(/</g, '\\u003c'); // 转义尖括号，避免破坏脚本标签
+
+  // 2) 取当前页面完整源码（doctype + documentElement），把预设写进 #templateData
+  let src = '<!DOCTYPE html>\n' + document.documentElement.outerHTML;
+  const re = /(<script id="templateData" type="application\/json">)[\s\S]*?(<\/script>)/;
+  if(!re.test(src)){
+    alert('⚠️ 模板结构异常，无法保存。请使用完整版生成器文件。');
+    return;
+  }
+  src = src.replace(re, (m, a, b)=>a + presetJSON + b);
+
+  // 3) 下载
+  const blob = new Blob([src], {type:'text/html;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (state.pageTitle || '对比表') + '_我的模板.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+  alert('✅ 模板已保存！\n下次打开这份 HTML，列名与型号都在，直接填数值即可导出。');
+}
+
 /* ================= 导出 PNG（Canvas 绘制 + 微水印） =================
    采用零依赖的 Canvas 手工绘制，保证离线可用、跨浏览器稳定。
    关键点：所有单元格文案/皇冠/金框/徽章/条宽均来自 lastModel —— 与预览
@@ -912,14 +965,37 @@ function exportPNG(){
   }, 'image/png');
 }
 
-/* ================= 初始化 ================= */
+/* ================= 初始化（兼容「我的模板」预设） ================= */
+(function initFromTemplate(){
+  const el = document.getElementById('templateData');
+  if(!el) return;
+  let preset = null;
+  try{ preset = JSON.parse(el.textContent || 'null'); }catch(e){ preset = null; }
+  if(preset && preset.state){
+    const s = preset.state;
+    if(Array.isArray(s.cols) && s.cols.length) state.cols = s.cols;
+    if(Array.isArray(s.rows) && s.rows.length) state.rows = s.rows;
+    if(typeof s.pageTitle==='string') state.pageTitle = s.pageTitle;
+    if(typeof s.cornerLabel==='string') state.cornerLabel = s.cornerLabel;
+    if(typeof s.note==='string') state.note = s.note;
+    if(typeof s.showCrown==='boolean') state.showCrown = s.showCrown;
+    if(typeof s.showGold==='boolean') state.showGold = s.showGold;
+    if(SKINS[preset.skin]) currentSkin = preset.skin;
+    if(['classic','lattice','dots','glow','thin'].includes(preset.bar)) currentBar = preset.bar;
+  }
+})();
+
 pt.value = state.pageTitle;
 cl.value = state.cornerLabel;
 nt.value = state.note;
 tCrown.checked = state.showCrown;
 tGold.checked = state.showGold;
-setSkin('default');
-setBar('classic');
+// 同步皮肤/能量条选中态（不再写死 default/classic，模板可自带样式）
+document.body.classList.remove('skin-default','skin-dark','skin-business','skin-morandi');
+document.body.classList.add('skin-' + currentSkin);
+document.querySelectorAll('#skinPicker button').forEach(b=>b.classList.toggle('active', b.dataset.skin===currentSkin));
+document.querySelectorAll('#barPicker button').forEach(b=>b.classList.toggle('active', b.dataset.bar===currentBar));
+render();
 </script>
 </body>
 </html>
