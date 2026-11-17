@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>对比表生成器 · 全功能版</title>
+<!-- 
+  ============================================================
+  对比表生成器 · 全功能版
+  由 玩出个名堂 敬制
+  更具温度的怀旧数码玩乐指南
+  ============================================================
+  ⚠️ 版权声明：
+  本代码由「玩出个名堂」原创开发并免费分享。
+  未经授权，请勿直接倒卖、打包售卖或去水印后二次发布。
+  如果您觉得好用，欢迎关注原作者以获取更多好玩工具！
+  ============================================================
+-->
+<style>
+  /* === 界面主题变量（--ui-* 与表格 --* 隔离，避免互相污染） ===
+     切皮肤只换 body 上的 .skin-* class，所有控件统一读变量，
+     不再由 setSkin 逐个元素内联写颜色。 */
+  body{
+    --ui-page-bg:#fafafa;   --ui-text:#1a1a1a;  --ui-panel-bg:#fff;
+    --ui-border:#e5e5e5;    --ui-input-bg:#fff; --ui-input-text:#1a1a1a;
+    --ui-input-border:#ccc; --ui-chip-bg:#f2f4f7;--ui-ghost-bg:#fff;
+    --ui-muted:#999;        --ui-label:#555;    --ui-heading:#333;
+    --ui-accent:#5b9bd5;    --ui-accent-deep:#1f6fb4; --ui-shadow:rgba(0,0,0,.04);
+    font-family:"PingFang SC","Microsoft YaHei",sans-serif;
+    margin:24px; color:var(--ui-text); background:var(--ui-page-bg);
+    transition: background .3s, color .3s;
+  }
+  body.skin-dark{
+    --ui-page-bg:#0f1115;   --ui-text:#e6e6e6;  --ui-panel-bg:#1c1f25;
+    --ui-border:#2e3238;    --ui-input-bg:#24282e;--ui-input-text:#e6e6e6;
+    --ui-input-border:#3c424a;--ui-chip-bg:#24282e;--ui-ghost-bg:transparent;
+    --ui-muted:#7a8088;     --ui-label:#9aa0a6; --ui-heading:#e6e6e6;
+    --ui-accent:#4ea1ff;    --ui-accent-deep:#7cc0ff; --ui-shadow:rgba(0,0,0,.3);
+  }
+  body.skin-business{
+    --ui-page-bg:#f2f6fa;   --ui-text:#0f2b46;  --ui-panel-bg:#fff;
+    --ui-border:#c7d6e5;    --ui-input-bg:#fff; --ui-input-text:#0f2b46;
+    --ui-input-border:#c7d6e5;--ui-chip-bg:#eaf1f8;--ui-ghost-bg:#fff;
+    --ui-muted:#7d92a8;     --ui-label:#3c5a78; --ui-heading:#0f2b46;
+    --ui-accent:#1f5f99;    --ui-accent-deep:#154d7a; --ui-shadow:rgba(31,95,153,.08);
+  }
+  body.skin-morandi{
+    --ui-page-bg:#efece7;   --ui-text:#4a4a48;  --ui-panel-bg:#f7f5f2;
+    --ui-border:#ddd6ce;    --ui-input-bg:#fff; --ui-input-text:#4a4a48;
+    --ui-input-border:#ddd6ce;--ui-chip-bg:#eeeae4;--ui-ghost-bg:#fff;
+    --ui-muted:#a49e96;     --ui-label:#8a857f; --ui-heading:#4a4a48;
+    --ui-accent:#8fa3a8;    --ui-accent-deep:#6b8288; --ui-shadow:rgba(0,0,0,.04);
+  }
+
+  /* === 题头与签名样式 === */
+  .app-header { text-align: center; margin-bottom: 24px; padding: 30px 0 20px; border-bottom: 1px solid var(--ui-border); }
+  .app-header h1 { margin: 0; font-size: 26px; font-weight: 600; color: var(--ui-text); letter-spacing: 1px; }
+
+  /* 签名区：横线 + 文字居中 */
+  .app-header .author {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    margin: 12px 0 8px; font-size: 15px; color: var(--ui-muted); font-weight: 500;
+  }
+  .app-header .author .line {
+    display: inline-block; width: 36px; height: 1px; background: var(--ui-border);
+  }
+  .app-header .author strong { color: var(--ui-accent); font-weight: 600; }
+
+  .app-header .slogan { font-size: 13px; color: var(--ui-muted); letter-spacing: 2px; }
+
+  /* === 全局样式 === */
+  h3{margin:20px 0 8px;font-size:15px;color:var(--ui-heading)}
+  .field{margin:8px 0}
+  .field label{display:inline-block;width:96px;color:var(--ui-label);font-size:13px}
+  input,select,textarea{padding:5px 8px;border:1px solid var(--ui-input-border);border-radius:4px;font-size:13px;font-family:inherit;background:var(--ui-input-bg);color:var(--ui-input-text)}
+  input.name{width:130px}
+  input.num{width:90px}
+  input.wide{width:440px}
+  table{border-collapse:collapse;font-size:13px}
+  button{padding:6px 14px;margin:4px 8px 4px 0;border:1px solid var(--ui-accent);background:var(--ui-accent);color:#fff;border-radius:6px;cursor:pointer;font-size:13px; transition: all 0.2s;}
+  button:hover { opacity: 0.9; }
+  button.ghost{background:var(--ui-ghost-bg);color:var(--ui-accent)}
+  button.danger{background:var(--ui-ghost-bg);color:#c0392b;border-color:#e0b4ac}
+  button:disabled{opacity:.4;cursor:not-allowed}
+  #outbox{width:100%;height:180px;margin-top:8px;font-family:monospace;font-size:12px;padding:8px;border:1px solid var(--ui-input-border);border-radius:6px;background:var(--ui-input-bg);color:var(--ui-input-text)}
+  .preview{border:1px dashed var(--ui-input-border);padding:12px;margin-top:12px;overflow-x:auto;border-radius:6px}
+  .hint{font-size:12px;color:var(--ui-muted);margin-left:4px}
+  .cols-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+  .cols-wrap .col-item{display:flex;align-items:center;gap:4px;background:var(--ui-chip-bg);padding:4px 8px;border-radius:6px}
+  .col-item input{width:140px}
+  .row-tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:10px 0}
+  .skin-picker{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .skin-picker button{padding:8px 14px;border-radius:8px}
+  .skin-picker button.active{outline:2px solid var(--ui-accent-deep);outline-offset:2px}
+  .panel{background:var(--ui-panel-bg);border:1px solid var(--ui-border);border-radius:10px;padding:16px 18px;margin-bottom:16px;box-shadow:0 1px 3px var(--ui-shadow); transition: background 0.3s, border-color 0.3s;}
+  .col-type{font-size:11px;color:var(--ui-muted);margin-left:2px}
+  .switch{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--ui-text);cursor:pointer;user-select:none;margin-right:18px}
+  .switch input{width:auto;accent-color:var(--ui-accent)}
+  .bar-picker{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+  .bar-picker button{padding:8px 14px;border-radius:8px;background:var(--ui-ghost-bg);color:var(--ui-accent);border:1px solid var(--ui-accent)}
+  .bar-picker button.active{background:var(--ui-accent);color:#fff}
+
+  /* 按钮主次分明 */
+  .btn-main { font-size:16px; padding:12px 32px; border-radius:8px; margin-bottom:16px; background:var(--ui-accent); border:none; box-shadow:0 4px 12px var(--ui-shadow); }
+</style>
+</head>
+<body>
+
+<!-- 题头与签名 -->
+<div class="app-header">
+  <h1>对比表生成器 · 全功能版</h1>
+  <div style="text-align:center;font-size:11px;color:#aaa;letter-spacing:1px;margin-top:6px;">V1.0</div>
+  <div class="author">
+    <span class="line"></span>
+    <span>由 <strong>玩出个名堂</strong> 敬制</span>
+    <span class="line"></span>
+  </div>
+  <div class="slogan">更具温度的怀旧数码玩乐指南</div>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">🎨 皮肤</h3>
+  <div class="skin-picker" id="skinPicker">
+    <button data-skin="default" onclick="setSkin('default')">默认</button>
+    <button data-skin="dark" onclick="setSkin('dark')">深色模式</button>
+    <button data-skin="business" onclick="setSkin('business')">商务蓝</button>
+    <button data-skin="morandi" onclick="setSkin('morandi')">莫兰迪色系</button>
+  </div>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">① 表格标题 / 说明文字</h3>
+  <div class="field"><label>页面标题</label><input class="wide" id="pageTitle" value="3DMark 显卡对比"></div>
+  <div class="field"><label>左上角表头</label><input class="wide" id="cornerLabel" value="3DMark"></div>
+  <div class="field">
+    <label>底部说明文字</label>
+    <input class="wide" id="noteText" value="能量条：每列以该列最高分为满格；百分比：相对第一行的增减百分比。" placeholder="（留空则不显示说明文字）">
+  </div>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">② 列名（可增删改 · 每列可选类型：数值 / 百分比）</h3>
+  <div class="cols-wrap" id="colsWrap"></div>
+  <button class="ghost" onclick="addCol()">+ 加一列</button>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">③ 行数据（第一行为参照行）</h3>
+  <table id="inputTable">
+    <thead></thead>
+    <tbody></tbody>
+  </table>
+  <button class="ghost" onclick="addRow()">+ 加一行</button>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">④ 第一名高亮选项</h3>
+  <label class="switch"><input type="checkbox" id="toggleCrown" checked> 👑 显示小皇冠</label>
+  <label class="switch"><input type="checkbox" id="toggleGold" checked> 🟨 显示金色描边</label>
+  <span class="hint">两项独立控制，可单独关闭某一项</span>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">⑤ 能量条样式</h3>
+  <div class="bar-picker" id="barPicker">
+    <button data-bar="classic" onclick="setBar('classic')">经典实心</button>
+    <button data-bar="lattice" onclick="setBar('lattice')">晶格分格</button>
+    <button data-bar="dots" onclick="setBar('dots')">圆点胶囊</button>
+    <button data-bar="glow" onclick="setBar('glow')">渐变流光</button>
+    <button data-bar="thin" onclick="setBar('thin')">细线极简</button>
+  </div>
+</div>
+
+<div class="panel">
+  <h3 style="margin-top:0">⑥ 实时预览</h3>
+  <div class="row-tools">
+    <span class="hint">提示：点击表头可切换排序（再点一次反向）</span>
+  </div>
+  <div class="preview" id="preview"></div>
+</div>
+
+<div class="panel" style="text-align:center;">
+  <h3 style="margin-top:0;text-align:left;">⑦ 导出与分享</h3>
+  <p class="hint" style="text-align:left;margin-bottom:16px;">推荐导出为 PNG 图片，适合直接分享或插入文档；如需在手机端滑动查看或保留数据，可导出为 HTML 网页。</p>
+  
+  <button onclick="exportPNG()" class="btn-main">
+    📷 导出高清 PNG 图片
+  </button>
+  
+  <div style="display:flex; justify-content:center; gap:16px; margin-top:8px;">
+    <button class="ghost" onclick="copyHTML()" style="margin:0;">📋 复制 HTML 代码</button>
+    <button class="ghost" onclick="downloadHTML()" style="margin:0;">💾 下载网页文件</button>
+  </div>
+  <!-- 隐藏原来的 textarea，仅用于后台暂存数据 -->
+  <textarea id="outbox" readonly style="display:none;"></textarea>
+</div>
+
+<script>
+/* ============================================================
+   版权防盗标记：控制台输出
+   ============================================================ */
+console.log("%c对比表生成器 · 全功能版", "font-size: 20px; font-weight: bold; color: #5b9bd5; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);");
+console.log("%c由 玩出个名堂 敬制", "font-size: 15px; color: #666; font-weight: bold;");
+console.log("%c更具温度的怀旧数码玩乐指南", "font-size: 13px; color: #999; letter-spacing: 1px;");
+console.log("%c⚠️ 版权声明：本工具由「玩出个名堂」原创开发，未经授权请勿倒卖或去除水印二次发布。", "color: #c0392b; font-weight: bold; font-size: 12px;");
+
+/* ================= 皮肤定义 ================= */
+const SKINS = {
+  default: {
+    label:'默认',
+    vars:{
+      '--bg':'#ffffff','--text':'#1a1a1a','--th':'#666','--th-border':'#d9d9d9','--td-border':'#eee',
+      '--base-fill':'#9e9e9e','--cmp-fill':'#5b9bd5','--track':'#f0f0f0',
+      '--base-name':'#333','--cmp-name':'#1f6fb4','--note':'#999',
+      '--up-bg':'#e6f4ea','--up-fg':'#2e7d32','--down-bg':'#fdece5','--down-fg':'#bf5b3a',
+      '--gold':'#d4a017','--crown':'#e6b422',
+      '--bar-glow':'#82b8e6','--bar-dot':'#5b9bd5','--bar-base-dot':'#9e9e9e',
+      '--base-glow':'#c2c2c2'
+    }
+  },
+  dark: {
+    label:'深色模式',
+    vars:{
+      '--bg':'#16181d','--text':'#e6e6e6','--th':'#9aa0a6','--th-border':'#2e3238','--td-border':'#262a30',
+      '--base-fill':'#5c5f66','--cmp-fill':'#4ea1ff','--track':'#2a2e35',
+      '--base-name':'#c9cdd2','--cmp-name':'#7cc0ff','--note':'#7a8088',
+      '--up-bg':'#173226','--up-fg':'#4ade80','--down-bg':'#3a2420','--down-fg':'#ff9b7a',
+      '--gold':'#f0c040','--crown':'#ffd75e',
+      '--bar-glow':'#6bb6ff','--bar-dot':'#4ea1ff','--bar-base-dot':'#5c5f66',
+      '--base-glow':'#8b8f96'
+    }
+  },
+  business: {
+    label:'商务蓝',
+    vars:{
+      '--bg':'#ffffff','--text':'#0f2b46','--th':'#3c5a78','--th-border':'#c7d6e5','--td-border':'#e3ecf5',
+      '--base-fill':'#8fa8c2','--cmp-fill':'#1f5f99','--track':'#eaf1f8',
+      '--base-name':'#1f3a52','--cmp-name':'#154d7a','--note':'#7d92a8',
+      '--up-bg':'#e3f0fa','--up-fg':'#12588f','--down-bg':'#fbe9e4','--down-fg':'#b0523a',
+      '--gold':'#b8860b','--crown':'#d4a017',
+      '--bar-glow':'#4a8fcc','--bar-dot':'#1f5f99','--bar-base-dot':'#8fa8c2',
+      '--base-glow':'#b3c5d6'
+    }
+  },
+  morandi: {
+    label:'莫兰迪色系',
+    vars:{
+      '--bg':'#f7f5f2','--text':'#4a4a48','--th':'#8a857f','--th-border':'#ddd6ce','--td-border':'#ece7e1',
+      '--base-fill':'#b8b0a6','--cmp-fill':'#8fa3a8','--track':'#eeeae4',
+      '--base-name':'#5c5852','--cmp-name':'#6b8288','--note':'#a49e96',
+      '--up-bg':'#e4ebe3','--up-fg':'#5c7d5e','--down-bg':'#f0e4de','--down-fg':'#a8735c',
+      '--gold':'#b89b6a','--crown':'#c9a96e',
+      '--bar-glow':'#9db8bc','--bar-dot':'#8fa3a8','--bar-base-dot':'#b8b0a6',
+      '--base-glow':'#d2cbc2'
+    }
+  }
+};
+let currentSkin = 'default';
+let currentBar = 'classic';
+
+function setSkin(name){
+  currentSkin = name;
+  document.querySelectorAll('#skinPicker button').forEach(b=>b.classList.toggle('active', b.dataset.skin===name));
+  // 界面主题：只切 body 上的 class，颜色全部交给 CSS 变量，不再逐元素内联写死。
+  document.body.classList.remove('skin-default','skin-dark','skin-business','skin-morandi');
+  document.body.classList.add('skin-' + name);
+  render();
+}
+
+function setBar(name){
+  currentBar = name;
+  document.querySelectorAll('#barPicker button').forEach(b=>b.classList.toggle('active', b.dataset.bar===name));
+  updatePreview();
+}
+
+/* ================= 状态 ================= */
+let state = {
+  pageTitle:'3DMark 显卡对比',
+  cornerLabel:'3DMark',
+  note:'能量条：每列以该列最高分为满格；百分比：相对第一行的增减百分比。',
+  cols:[
+    {name:'Time Spy', type:'number'},
+    {name:'Time Spy Extreme', type:'number'},
+    {name:'Steel Nomad', type:'number'},
+    {name:'Fire Strike', type:'number'},
+    {name:'Fire Strike Extreme', type:'number'},
+    {name:'Fire Strike Ultra', type:'number'}
+  ],
+  rows:[
+    {name:'P104 Gen2 x16', v:[6403,2962,1499,19509,9509,4674]},
+    {name:'GTX 1070',      v:[6123,2781,1377,17436,8371,4165]},
+    {name:'GTX 1070 Ti',   v:[6873,3116,1449,19876,9453,4962]},
+    {name:'GTX 1080',      v:[7592,3410,1649,22186,10660,5350]}
+  ],
+  sort:{col:-1, dir:1},
+  showCrown:true,
+  showGold:true
+};
+
+// 预览渲染时填充的绘制数据模型：预览与 PNG 导出共用同一份计算结果，
+// 避免导出时重新去 DOM 里解析 .badge/.crown/boxShadow 字符串（脆弱且易不同步）。
+let lastModel = { cells:{} };
+
+/* ================= 顶部字段绑定 ================= */
+const pt = document.getElementById('pageTitle');
+const cl = document.getElementById('cornerLabel');
+const nt = document.getElementById('noteText');
+pt.oninput = ()=>{ state.pageTitle = pt.value; updatePreview(); };
+cl.oninput = ()=>{ state.cornerLabel = cl.value; updatePreview(); };
+nt.oninput = ()=>{ state.note = nt.value; updatePreview(); };
+
+/* ================= 高亮开关绑定 ================= */
+const tCrown = document.getElementById('toggleCrown');
+const tGold  = document.getElementById('toggleGold');
+tCrown.onchange = ()=>{ state.showCrown = tCrown.checked; updatePreview(); };
+tGold.onchange  = ()=>{ state.showGold  = tGold.checked;  updatePreview(); };
+
+/* ================= 列管理 ================= */
+function renderCols(){
+  const wrap = document.getElementById('colsWrap');
+  wrap.innerHTML = state.cols.map((c,i)=>`
+    <div class="col-item">
+      <input value="${escAttr(c.name)}" oninput="state.cols[${i}].name=this.value; updatePreview()">
+      <select onchange="state.cols[${i}].type=this.value; render()">
+        <option value="number" ${c.type==='number'?'selected':''}>数值</option>
+        <option value="percent" ${c.type==='percent'?'selected':''}>百分比</option>
+      </select>
+      <button class="danger" onclick="removeCol(${i})">×</button>
+    </div>`).join('');
+}
+function addCol(){
+  state.cols.push({name:'新指标', type:'number'});
+  state.rows.forEach(r=>r.v.push(0));
+  render();
+}
+function removeCol(i){
+  if(state.cols.length<=1){ alert('至少保留一列'); return; }
+  state.cols.splice(i,1);
+  state.rows.forEach(r=>r.v.splice(i,1));
+  if(state.sort.col===i) state.sort={col:-1,dir:1};
+  else if(state.sort.col>i) state.sort.col--;
+  render();
+}
+
+/* ================= 行管理 ================= */
+function renderInput(){
+  const thead = document.querySelector('#inputTable thead');
+  const tbody = document.querySelector('#inputTable tbody');
+  thead.innerHTML = `<tr><th></th><th>名称</th>${state.cols.map(c=>`<th>${escHTML(c.name)}<span class="col-type">(${c.type==='percent'?'%':'数值'})</span></th>`).join('')}<th></th></tr>`;
+  tbody.innerHTML = state.rows.map((r,i)=>`
+    <tr>
+      <td>${i===0?'参照':'&nbsp;'}</td>
+      <td><input class="name" value="${escAttr(r.name)}" oninput="state.rows[${i}].name=this.value; updatePreview()"></td>
+      ${state.cols.map((c,j)=>`<td><input class="num" type="number" step="any" value="${r.v[j]}" oninput="state.rows[${i}].v[${j}]=+this.value; updatePreview()"></td>`).join('')}
+      <td><button class="danger" onclick="removeRow(${i})" ${state.rows.length<=2?'disabled':''}>删除</button></td>
+    </tr>`).join('');
+}
+function addRow(){
+  state.rows.push({name:'新显卡', v:state.cols.map(()=>0)});
+  render();
+}
+function removeRow(i){
+  if(state.rows.length<=2){ alert('至少保留两行（含参照行）'); return; }
+  state.rows.splice(i,1);
+  render();
+}
+
+/* ================= 工具函数 ================= */
+function escHTML(s){ return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function escAttr(s){ return escHTML(s); }
+function fmtNum(n){
+  const num = Number(n)||0;
+  return Number.isInteger(num) ? num.toLocaleString('en-US') : num.toLocaleString('en-US',{maximumFractionDigits:2});
+}
+function fmtVal(raw, type){
+  const val = Number(raw)||0;
+  return type==='percent' ? (val + '%') : fmtNum(val);
+}
+
+/* ================= 排序 ================= */
+function handleSort(j){
+  if(state.sort.col===j){
+    if(state.sort.dir===1) state.sort.dir=-1;
+    else state.sort={col:-1,dir:1};
+  }else{
+    state.sort={col:j, dir:-1};
+  }
+  updatePreview();
+}
+
+/* ================= 能量条内部 HTML ================= */
+function buildBarInner(pct, isBase){
+  const p = Math.max(0, Math.min(100, pct));
+  const color = isBase ? 'var(--base-fill)' : 'var(--cmp-fill)';
+  const glowEnd = isBase ? 'var(--base-glow)' : 'var(--bar-glow)';
+
+  if(currentBar === 'classic'){
+    return `<div class="fill" style="width:${p}%"></div>`;
+  }
+  if(currentBar === 'lattice'){
+    return `<div class="lattice-fill" style="width:${p}%"></div>`;
+  }
+  if(currentBar === 'dots'){
+    const dotSize = 8, gap = 5, step = dotSize + gap;
+    const approxW = 260;
+    const count = Math.ceil(approxW / step) + 1;
+    let dots = '';
+    for(let i=0;i<count;i++){
+      dots += `<span class="dot ${isBase?'base':''}" style="left:${i*step}px"></span>`;
+    }
+    return `<div class="dots-mask" style="width:${p}%">${dots}</div>`;
+  }
+  if(currentBar === 'glow'){
+    return `<div class="fill glow-fill" style="width:${p}%;background:linear-gradient(90deg, ${color} 0%, ${glowEnd} 100%)"></div>`;
+  }
+  if(currentBar === 'thin'){
+    return `<div class="fill thin-fill" style="width:${p}%;background:${color}"></div>`;
+  }
+  return `<div class="fill" style="width:${p}%"></div>`;
+}
+
+/* ================= 样式块（预览与导出共用） ================= */
+function buildStyleBlock(skin, bar){
+  const varStyle = Object.entries(skin).map(([k,v])=>`${k}:${v};`).join('');
+  let css = `
+    .table-root{${varStyle}font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--text);}
+    table{border-collapse:collapse;width:100%;min-width:860px;font-size:13px;table-layout:auto;}
+    th{text-align:center;padding:8px;border-bottom:1px solid var(--th-border);color:var(--th);font-weight:500;}
+    th:first-child{text-align:left;}
+    td{padding:8px;vertical-align:middle;border-bottom:1px solid var(--td-border);}
+    td:first-child{font-weight:600;white-space:nowrap;}
+    .val{display:flex;justify-content:space-between;align-items:center;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;margin-bottom:5px;}
+    .track{height:8px;border-radius:4px;background:var(--track);overflow:hidden;position:relative;}
+    .fill{height:100%;border-radius:4px;transition:width .2s;}
+    .base .fill{background:var(--base-fill);}
+    .cmp .fill{background:var(--cmp-fill);}
+    .base td:first-child{color:var(--base-name);}
+    .cmp td:first-child{color:var(--cmp-name);}
+    .badge{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:6px;font-size:11px;font-weight:500;}
+    .up{background:var(--up-bg);color:var(--up-fg);}
+    .down{background:var(--down-bg);color:var(--down-fg);}
+    .crown{font-size:12px;margin-left:4px;filter:drop-shadow(0 0 2px rgba(0,0,0,.15));}
+    .note{margin-top:10px;font-size:12px;color:var(--note);}
+  `;
+
+  if(bar === 'lattice'){
+    css += `
+      .track{height:10px;border-radius:5px;background:var(--track);overflow:hidden;position:relative;}
+      .lattice-fill{position:absolute;top:0;bottom:0;left:0;border-radius:5px;
+        background-image:repeating-linear-gradient(90deg,
+          var(--cmp-fill) 0 9px, transparent 9px 12px);
+      }
+      .base .lattice-fill{background-image:repeating-linear-gradient(90deg,
+          var(--base-fill) 0 9px, transparent 9px 12px);}
+      .track::after{content:'';position:absolute;inset:0;pointer-events:none;
+        background:repeating-linear-gradient(90deg,
+          transparent 0 9px, rgba(255,255,255,.22) 9px 10px, transparent 10px 12px);}
+    `;
+  }
+
+  if(bar === 'dots'){
+    css += `
+      .track{height:10px;border-radius:5px;background:var(--track);overflow:hidden;position:relative;}
+      .dots-mask{position:absolute;top:0;bottom:0;left:0;overflow:hidden;border-radius:5px;}
+      .dot{position:absolute;top:50%;transform:translateY(-50%);width:8px;height:8px;border-radius:50%;background:var(--cmp-fill);}
+      .dot.base{background:var(--base-fill);}
+    `;
+  }
+
+  if(bar === 'glow'){
+    css += `
+      .track{height:10px;border-radius:5px;background:var(--track);overflow:hidden;position:relative;}
+      .glow-fill{position:relative;border-radius:5px;}
+      .cmp .glow-fill{box-shadow:0 0 6px var(--bar-glow);}
+      .base .glow-fill{box-shadow:0 0 4px var(--base-glow);}
+      .glow-fill::after{content:'';position:absolute;top:0;bottom:0;right:0;width:24px;
+        background:linear-gradient(90deg, transparent, rgba(255,255,255,.55));border-radius:5px;}
+    `;
+  }
+
+  if(bar === 'thin'){
+    css += `
+      .track{height:4px;border-radius:2px;background:var(--track);overflow:hidden;position:relative;}
+      .thin-fill{height:100%;border-radius:2px;}
+    `;
+  }
+
+  return css;
+}
+
+/* ================= 计算第一列自适应宽度 ================= */
+const _measureCanvas = document.createElement('canvas'); // 复用，避免每次输入都新建
+function computeFirstColWidth(){
+  const ctx = _measureCanvas.getContext('2d');
+  ctx.font = '600 13px "PingFang SC","Microsoft YaHei",sans-serif';
+
+  let maxW = ctx.measureText(state.cornerLabel || '').width;
+  state.rows.forEach(r=>{
+    const w = ctx.measureText(r.name || '').width;
+    if(w > maxW) maxW = w;
+  });
+
+  return Math.ceil(maxW + 8 + 8 + 12);
+}
+
+/* ================= 渲染器：只更新预览 ================= */
+function updatePreview(){
+  const skin = SKINS[currentSkin].vars;
+
+  const maxs = state.cols.map((c,j)=>{
+    const vals = state.rows.map(r=>Number(r.v[j])||0);
+    return Math.max(...vals, 0) || 1;
+  });
+
+  let order = state.rows.map((r,i)=>i);
+  if(state.sort.col>=0){
+    const j = state.sort.col, dir = state.sort.dir;
+    order.sort((a,b)=>{
+      const va = Number(state.rows[a].v[j])||0;
+      const vb = Number(state.rows[b].v[j])||0;
+      return (va-vb)*dir;
+    });
+  }
+
+  const maxRowIdxPerCol = state.cols.map((_,j)=>{
+    let mi=0, mv=-Infinity;
+    state.rows.forEach((r,i)=>{
+      const val = Number(r.v[j])||0;
+      if(val>mv){ mv=val; mi=i; }
+    });
+    return mi;
+  });
+
+  const base = state.rows[0].v.map(Number);
+  const firstColW = computeFirstColWidth();
+
+  const headCells = state.cols.map((c,j)=>{
+    const active = state.sort.col===j;
+    const arrow = active ? (state.sort.dir===-1?' ▼':' ▲') : '';
+    return `<th style="cursor:pointer" onclick="handleSort(${j})" title="点击排序">${escHTML(c.name)}${arrow}</th>`;
+  }).join('');
+
+  const modelRows = []; // 供 PNG 导出复用的绘制数据（与显示顺序一致）
+  const bodyRows = order.map((idx)=>{
+    const r = state.rows[idx];
+    const isBase = idx===0;
+    const cls = isBase?'base':'cmp';
+    const modelCells = [];
+    const cells = r.v.map((raw,j)=>{
+      const val = Number(raw)||0;
+      const max = maxs[j];
+      const w = +Math.max(0, Math.min(100, (val/max*100))).toFixed(1);
+
+      const isColMax = (idx === maxRowIdxPerCol[j]);
+      const hasCrown = isColMax && state.showCrown;
+      const hasGold  = isColMax && state.showGold;
+      const crown = hasCrown ? '<span class="crown" title="该列最高">👑</span>' : '';
+      const goldRing = hasGold ? 'box-shadow: inset 0 0 0 2px var(--gold);' : '';
+
+      let badge = '', badgeText = '', badgeUp = true;
+      if(!isBase){
+        const b = Number(base[j])||0;
+        const pct = b===0 ? 0 : Math.round(val/b*100-100);
+        badgeUp = pct>=0;
+        const sign = pct>0?'+':'';
+        const arrow = pct>0 ? '▲' : (pct<0 ? '▼' : '');
+        badgeText = `${arrow ? arrow+' ' : ''}${sign}${pct}%`;
+        badge = `<span class="badge ${badgeUp?'up':'down'}">${badgeText}</span>`;
+      }
+      const valText = fmtVal(val, state.cols[j].type);
+      const barInner = buildBarInner(w, isBase);
+
+      modelCells.push({ valText, badgeText, badgeUp, hasCrown, hasGold, pct:w, isBase });
+
+      const leftWrap = `<div style="display:flex;align-items:center"><span class="text-val">${valText}</span>${crown}</div>`;
+      const rightWrap = badge ? `<div>${badge}</div>` : '';
+
+      return `<td class="${isColMax?'is-best':''}" style="${goldRing}"><div class="val">${leftWrap}${rightWrap}</div><div class="track">${barInner}</div></td>`;
+    }).join('');
+    modelRows.push({ name: r.name, isBase, cells: modelCells });
+    return `<tr class="${cls}"><td>${escHTML(r.name)}</td>${cells}</tr>`;
+  }).join('');
+  lastModel = { rows: modelRows, headers: state.cols.map(c=>c.name), corner: state.cornerLabel };
+
+  const tableHTML =
+`<table>
+  <colgroup>
+    <col style="width:${firstColW}px">
+    ${state.cols.map(()=>`<col>`).join('')}
+  </colgroup>
+  <thead><tr>
+    <th>${escHTML(state.cornerLabel)}</th>${headCells}
+  </tr></thead>
+  <tbody>
+${bodyRows}
+  </tbody>
+</table>`;
+
+  const css = buildStyleBlock(skin, currentBar);
+
+  const previewHTML = `
+    <div class="preview-holder">
+      <style>${css}</style>
+      <div class="table-root" style="padding:14px;border-radius:8px;">
+        ${tableHTML}
+        ${state.note ? `<div class="note">${escHTML(state.note)}</div>` : ''}
+      </div>
+    </div>`;
+  document.getElementById('preview').innerHTML = previewHTML;
+
+  document.getElementById('outbox').value = buildFullHTML(tableHTML, css);
+}
+
+function render(){
+  renderCols();
+  renderInput();
+  updatePreview();
+}
+
+/* ================= 导出 HTML（注入防盗注释标记） ================= */
+function buildFullHTML(tableHTML, css){
+  return `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>${escHTML(state.pageTitle)}</title>
+<!-- 
+  ============================================================
+  对比表生成器 · 全功能版
+  由 玩出个名堂 敬制
+  更具温度的怀旧数码玩乐指南
+  ============================================================
+  ⚠️ 版权提示：
+  此代码由「玩出个名堂」的“对比表生成器”生成。
+  欢迎自由使用生成的表格。但请勿将本生成器的原始代码用于商业倒卖。
+  ============================================================
+-->
+<style>${css}</style>
+</head>
+<body class="table-root" style="margin:24px;">
+${tableHTML}
+${state.note ? `<div class="note">${escHTML(state.note)}</div>` : ''}
+<!-- 由 玩出个名堂 提供支持 -->
+</body>
+</html>`;
+}
+
+async function copyHTML(){
+  const text = document.getElementById('outbox').value;
+  try{
+    // 现代 API（file:// 下部分浏览器不可用，故保留降级）
+    if(navigator.clipboard && window.isSecureContext){
+      await navigator.clipboard.writeText(text);
+    }else{
+      const t = document.getElementById('outbox');
+      t.style.display = 'block';
+      t.select();
+      const ok = document.execCommand('copy');
+      t.style.display = 'none';
+      if(!ok) throw new Error('copy failed');
+    }
+    alert('✅ 已复制完整 HTML 代码！\n可以直接粘贴到你的网页或博客中。');
+  }catch(e){
+    alert('⚠️ 自动复制失败。请改用「下载网页文件」导出，或手动选中复制。');
+  }
+}
+function downloadHTML(){
+  const blob = new Blob([document.getElementById('outbox').value], {type:'text/html;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (state.pageTitle || '对比表') + '.html';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href), 3000); // 延迟释放，避免部分浏览器下载失败
+}
+
+/* ================= 导出 PNG（Canvas 绘制 + 微水印） =================
+   采用零依赖的 Canvas 手工绘制，保证离线可用、跨浏览器稳定。
+   关键点：所有单元格文案/皇冠/金框/徽章/条宽均来自 lastModel —— 与预览
+   同一份计算结果，不再去 DOM 里解析 boxShadow 字符串，避免两者不同步。 */
+function exportPNG(){
+  const table = document.querySelector('#preview table');
+  if(!table || !lastModel.rows.length){ alert('请先预览'); return; }
+
+  const skin = SKINS[currentSkin].vars;
+  const col = (name)=>skin[name] || '#000';
+
+  const rect = table.getBoundingClientRect();
+  const padding = 28;
+  const extraNoteHeight = state.note ? 28 : 0;
+  // 底部多预留 20px 放微水印
+  const W = Math.ceil(rect.width) + padding*2;
+  const H = Math.ceil(rect.height) + padding*2 + extraNoteHeight + 20;
+
+  const scale = 2;
+  const canvas = document.createElement('canvas');
+  canvas.width = W * scale;
+  canvas.height = H * scale;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(scale, scale);
+
+  ctx.fillStyle = col('--bg');
+  ctx.fillRect(0, 0, W, H);
+  ctx.textBaseline = 'middle';
+
+  const FONT = (w,s)=>`${w} ${s}px "PingFang SC","Microsoft YaHei",sans-serif`;
+
+  function drawText(text, x, y, font, color, align='left'){
+    ctx.font = font;
+    ctx.fillStyle = color;
+    ctx.textAlign = align;
+    ctx.fillText(text, x, y);
+    ctx.textAlign = 'left';
+  }
+
+  /* ---- 列宽：直接取实际 DOM 列宽，按画布总宽归一化（修复写死/近似） ---- */
+  const ths = table.querySelectorAll('thead th');
+  const colWidths = [];
+  table.querySelectorAll('colgroup col').forEach(c=>colWidths.push(parseFloat(c.style.width)||0));
+  ths.forEach((th,i)=>{ if(!colWidths[i]) colWidths[i] = th.getBoundingClientRect().width; });
+  const domTotal = colWidths.reduce((a,b)=>a+b,0);
+  if(domTotal > 0 && Math.abs(domTotal - rect.width) > 1){
+    const ratio = rect.width / domTotal;
+    for(let i=0;i<colWidths.length;i++) colWidths[i] *= ratio;
+  }
+
+  const startX = padding, startY = padding;
+
+  /* ---- 表头 ---- */
+  const headerH = ths.length ? ths[0].getBoundingClientRect().height : 30;
+  const headers = [lastModel.corner].concat(lastModel.headers);
+  let x = startX;
+  const headY = startY + headerH/2;
+  headers.forEach((txt, j)=>{
+    const w = colWidths[j];
+    drawText(txt, j===0 ? x+8 : x+w/2, headY,
+             FONT(500,13), col('--th'), j===0 ? 'left':'center');
+    ctx.beginPath();
+    ctx.strokeStyle = col('--th-border');
+    ctx.lineWidth = 1;
+    ctx.moveTo(x, startY+headerH);
+    ctx.lineTo(x+w, startY+headerH);
+    ctx.stroke();
+    x += w;
+  });
+
+  /* ---- 数据行：逐行读取真实行高（修复只取第一行的假设） ---- */
+  const trEls = table.querySelectorAll('tbody tr');
+  let rowY = startY + headerH;
+  trEls.forEach((tr, ri)=>{
+    const rowH = tr.getBoundingClientRect().height || 44;
+    const mRow = lastModel.rows[ri];
+    let cellX = startX;
+
+    for(let j=0;j<colWidths.length;j++){
+      const w = colWidths[j] || 100;
+      // 名称列 j=0；数据列 j>=1 对应 model.cells[j-1]
+      if(j === 0){
+        const nameColor = mRow.isBase ? col('--base-name') : col('--cmp-name');
+        drawText(mRow.name, cellX+8, rowY+rowH/2, FONT(600,13), nameColor, 'left');
+      }else{
+        const m = mRow.cells[j-1];
+        if(m){
+          const numY = rowY + rowH/2 - 6;
+          ctx.font = FONT(600,13);
+          ctx.fillStyle = col('--text');
+          ctx.textAlign = 'left';
+          let drawX = cellX + 12;
+          ctx.fillText(m.valText, drawX, numY);
+          const fullWidth = ctx.measureText(m.valText).width;
+
+          // 皇冠：矢量绘制，避免 emoji 在部分系统渲染成方框
+          if(m.hasCrown){
+            drawCrown(ctx, drawX + fullWidth + 6, numY, col('--crown'));
+            drawX += 0;
+          }
+
+          // 徽章：按文字实际宽度计算（修复写死 bw=50 导致溢出）
+          if(m.badgeText){
+            ctx.font = FONT(500,11);
+            const bw = Math.ceil(ctx.measureText(m.badgeText).width) + 14;
+            const bh = 18;
+            const bx = cellX + w - bw - 12;
+            const by = numY - 9;
+            roundRect(ctx, bx, by, bw, bh, 6);
+            ctx.fillStyle = m.badgeUp ? col('--up-bg') : col('--down-bg');
+            ctx.fill();
+            ctx.fillStyle = m.badgeUp ? col('--up-fg') : col('--down-fg');
+            ctx.textAlign = 'center';
+            ctx.fillText(m.badgeText, bx + bw/2, by + bh/2 + 0.5);
+            ctx.textAlign = 'left';
+          }
+
+          // 能量条：条宽直接取 model 的百分比
+          const fillEl = tr.querySelectorAll('td')[j]?.querySelector('.fill, .lattice-fill, .dots-mask, .thin-fill');
+          if(fillEl){
+            const barH = (currentBar === 'thin') ? 4 : 10;
+            const barY = rowY + rowH - 16;
+            const barW = w - 24;
+            const barX = cellX + 12;
+            const pct = m.pct;
+
+            roundRect(ctx, barX, barY, barW, barH, barH/2);
+            ctx.fillStyle = col('--track');
+            ctx.fill();
+
+            const filledW = barW * pct / 100;
+            if(filledW > 0){
+              const fillColor = m.isBase ? col('--base-fill') : col('--cmp-fill');
+              ctx.save();
+              roundRect(ctx, barX, barY, barW, barH, barH/2);
+              ctx.clip();
+
+              if(currentBar === 'lattice'){
+                ctx.fillStyle = fillColor;
+                for(let cx=0; cx<filledW; cx+=12) ctx.fillRect(barX+cx, barY, Math.min(9, filledW-cx), barH);
+              }else if(currentBar === 'dots'){
+                ctx.fillStyle = fillColor;
+                for(let cx=4; cx-4<filledW; cx+=13){
+                  ctx.beginPath();
+                  ctx.arc(barX+cx, barY+barH/2, 4, 0, Math.PI*2);
+                  ctx.fill();
+                }
+              }else if(currentBar === 'glow'){
+                const grad = ctx.createLinearGradient(barX, 0, barX+filledW, 0);
+                grad.addColorStop(0, fillColor);
+                grad.addColorStop(1, m.isBase ? col('--base-glow') : col('--bar-glow'));
+                ctx.fillStyle = grad;
+                ctx.fillRect(barX, barY, filledW, barH);
+              }else{
+                ctx.fillStyle = fillColor;
+                ctx.fillRect(barX, barY, filledW, barH);
+              }
+              ctx.restore();
+            }
+          }
+
+          // 金框：来自 model，不再靠 boxShadow 字符串匹配
+          if(m.hasGold){
+            ctx.strokeStyle = col('--gold');
+            ctx.lineWidth = 2;
+            ctx.strokeRect(cellX+1, rowY+1, w-2, rowH-2);
+          }
+        }
+      }
+
+      ctx.beginPath();
+      ctx.strokeStyle = col('--td-border');
+      ctx.lineWidth = 1;
+      ctx.moveTo(cellX, rowY+rowH);
+      ctx.lineTo(cellX+w, rowY+rowH);
+      ctx.stroke();
+      cellX += w;
+    }
+    rowY += rowH;
+  });
+
+  if(state.note){
+    ctx.font = FONT(400,12);
+    ctx.fillStyle = col('--note');
+    ctx.textAlign = 'left';
+    ctx.fillText(state.note, startX, rowY + 18);
+  }
+
+  /* ============================================================
+     PNG 防盗微水印：右下角极浅防伪标识（保留原有设计）
+     ============================================================ */
+  ctx.font = FONT(400,10);
+  ctx.fillStyle = currentSkin === 'dark' ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.1)';
+  ctx.textAlign = 'right';
+  ctx.fillText('由 玩出个名堂 敬制', W - padding, H - 14);
+  ctx.textAlign = 'left';
+
+  function roundRect(ctx, x, y, w, h, r){
+    if(h < 2*r) r = h/2;
+    if(w < 2*r) r = w/2;
+    ctx.beginPath();
+    ctx.moveTo(x+r, y);
+    ctx.arcTo(x+w, y, x+w, y+h, r);
+    ctx.arcTo(x+w, y+h, x, y+h, r);
+    ctx.arcTo(x, y+h, x, y, r);
+    ctx.arcTo(x, y, x+w, y, r);
+    ctx.closePath();
+  }
+  // 矢量小皇冠：cx 为左缘，cy 为垂直中心
+  function drawCrown(ctx, cx, cy, color){
+    const w = 14, h = 11;
+    const top = cy - h/2;
+    ctx.beginPath();
+    ctx.moveTo(cx, top+4);
+    ctx.lineTo(cx+3, top+1);
+    ctx.lineTo(cx+w/2, top+5);
+    ctx.lineTo(cx+w-3, top+1);
+    ctx.lineTo(cx+w, top+4);
+    ctx.lineTo(cx+w-1, top+h);
+    ctx.lineTo(cx+1, top+h);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  canvas.toBlob(function(blob){
+    if(!blob){ alert('生成图片失败，请重试或更换浏览器。'); return; }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (state.pageTitle || '对比表') + '.png';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(a.href), 3000);
+  }, 'image/png');
+}
+
+/* ================= 初始化 ================= */
+pt.value = state.pageTitle;
+cl.value = state.cornerLabel;
+nt.value = state.note;
+tCrown.checked = state.showCrown;
+tGold.checked = state.showGold;
+setSkin('default');
+setBar('classic');
+</script>
+</body>
+</html>
