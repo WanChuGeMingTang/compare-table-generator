@@ -823,10 +823,9 @@ function exportPNG(){
           ctx.fillText(m.valText, drawX, numY);
           const fullWidth = ctx.measureText(m.valText).width;
 
-          // 皇冠：矢量绘制，避免 emoji 在部分系统渲染成方框
+          // 皇冠：与预览一致，直接绘制 emoji 👑
           if(m.hasCrown){
             drawCrown(ctx, drawX + fullWidth + 6, numY, col('--crown'));
-            drawX += 0;
           }
 
           // 徽章：按文字实际宽度计算（修复写死 bw=50 导致溢出）
@@ -936,21 +935,15 @@ function exportPNG(){
     ctx.arcTo(x, y, x+w, y, r);
     ctx.closePath();
   }
-  // 矢量小皇冠：cx 为左缘，cy 为垂直中心
+  // 小皇冠：直接用 emoji 绘制，与页面预览的 👑 完全一致
+  // （矢量路径在部分环境会被画成变形的小山包，故改回原生 emoji）
   function drawCrown(ctx, cx, cy, color){
-    const w = 14, h = 11;
-    const top = cy - h/2;
-    ctx.beginPath();
-    ctx.moveTo(cx, top+4);
-    ctx.lineTo(cx+3, top+1);
-    ctx.lineTo(cx+w/2, top+5);
-    ctx.lineTo(cx+w-3, top+1);
-    ctx.lineTo(cx+w, top+4);
-    ctx.lineTo(cx+w-1, top+h);
-    ctx.lineTo(cx+1, top+h);
-    ctx.closePath();
-    ctx.fillStyle = color;
-    ctx.fill();
+    ctx.save();
+    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
+    ctx.font = '13px "Apple Color Emoji","Segoe UI Emoji","Noto Color Emoji",sans-serif';
+    ctx.fillText('👑', cx, cy);
+    ctx.restore();
   }
 
   canvas.toBlob(function(blob){
