@@ -452,6 +452,7 @@ function buildStyleBlock(skin, bar){
     .down{background:var(--down-bg);color:var(--down-fg);}
     .crown{font-size:12px;margin-left:4px;filter:drop-shadow(0 0 2px rgba(0,0,0,.15));}
     .note{margin-top:10px;font-size:12px;color:var(--note);}
+.preview-title{margin-bottom:12px;font-size:20px;font-weight:700;color:var(--text);line-height:1.3;}
   `;
 
   if(bar === 'lattice'){
@@ -613,6 +614,7 @@ ${bodyRows}
     <div class="preview-holder">
       <style>${css}</style>
       <div class="table-root" style="padding:14px;border-radius:8px;">
+        ${state.pageTitle ? `<div class="preview-title">${escHTML(state.pageTitle)}</div>` : ''}
         ${tableHTML}
         ${state.note ? `<div class="note">${escHTML(state.note)}</div>` : ''}
       </div>
@@ -649,6 +651,7 @@ function buildFullHTML(tableHTML, css){
 <style>${css}</style>
 </head>
 <body class="table-root" style="margin:24px;">
+${state.pageTitle ? `<div class="preview-title">${escHTML(state.pageTitle)}</div>` : ''}
 ${tableHTML}
 ${state.note ? `<div class="note">${escHTML(state.note)}</div>` : ''}
 <!-- 由 玩出个名堂 提供支持 -->
@@ -741,10 +744,11 @@ function exportPNG(){
 
   const rect = table.getBoundingClientRect();
   const padding = 28;
+  const titleH = state.pageTitle ? 44 : 0;
   const extraNoteHeight = state.note ? 28 : 0;
   // 底部多预留 20px 放微水印
   const W = Math.ceil(rect.width) + padding*2;
-  const H = Math.ceil(rect.height) + padding*2 + extraNoteHeight + 20;
+  const H = Math.ceil(rect.height) + padding*2 + extraNoteHeight + titleH + 20;
 
   const scale = 2;
   const canvas = document.createElement('canvas');
@@ -778,7 +782,10 @@ function exportPNG(){
     for(let i=0;i<colWidths.length;i++) colWidths[i] *= ratio;
   }
 
-  const startX = padding, startY = padding;
+  const startX = padding, startY = padding + titleH;
+  if(state.pageTitle){
+    drawText(state.pageTitle, startX + 2, padding + titleH/2, FONT(700,20), col('--text'), 'left');
+  }
 
   /* ---- 表头 ---- */
   const headerH = ths.length ? ths[0].getBoundingClientRect().height : 30;
