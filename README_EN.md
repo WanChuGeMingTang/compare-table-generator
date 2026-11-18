@@ -12,6 +12,10 @@ A pure front-end, zero-dependency, offline-capable comparison table generator. E
 
 ## Features
 
+- **📋 Bulk paste**: copy a whole block from Excel / WPS / Numbers and press `Ctrl+V` on any cell - titles, column names and row names are detected automatically, and rows/columns expand as needed. No manual typing
+- **Two-level headers**: merged group headers from Excel (e.g. "3DMark" over "Total / Graphics") are restored automatically and render the same way in the preview, the PNG and the exported page
+- **Smart cleanup**: thousands separators, currency symbols, percent signs, full-width digits and any kind of dash are all parsed correctly
+- **Undo after pasting**: a persistent Undo bar at the bottom takes you back to the state before the paste; it never auto-dismisses
 - **Visual configuration**: customize the table title, top-left header, and footer note
 - **Column management**: freely add or remove columns; each can be a Number or Percentage column
 - **Row management**: freely add or remove rows; the first row is the reference (all other rows' percentages are based on it)
@@ -68,6 +72,17 @@ Just open `Comparison Table Generator · EN.html` in a browser - no install, no 
 
 > 💡 **Adjust the browser window width before exporting a PNG**: the image is generated at the current preview width, and the bar lengths and column widths scale together. Widen the window for a wide image, narrow it for a compact one - what you see is what you get.
 
+### Paste a whole table from Excel (new in V1.1, fastest way)
+
+No typing needed - move the table straight in:
+
+1. Select the block you want in Excel / WPS / Numbers (**title and headers included**) and copy it
+2. Back in the tool, click any cell under "③ Rows" and press `Ctrl+V`
+3. The tool detects: a big title → Page Title, the top-left cell → Top-left Header, header rows → column names (two-level headers become groups), the text in the first column → row names; columns and rows grow to fit
+4. A persistent bar appears at the bottom - if something went wrong, hit Undo to restore everything, title and corner label included
+
+> Selecting only the numbers works too: the block is filled right and down from the focused cell without touching existing column or row names.
+
 ### Reusing a Template (recommended)
 
 Once you have configured a structure you use often, you do not need to set it up from scratch every time:
@@ -84,9 +99,21 @@ Once you have configured a structure you use often, you do not need to set it up
 - Each row's change percentage = `this row's value ÷ reference row (first row) value - 1`; the reference row itself shows no percentage
 - The energy bar is scaled so the highest value in that column is full
 
-## Version
+## Changelog
 
-- **V1.0** (initial release): the complete full-featured version, with custom template saving
+### V1.1 (2026-11-18)
+
+- **New: bulk paste** - copy a whole block from Excel / WPS / Numbers and press `Ctrl+V`; titles, column names and row names are detected and rows/columns expand automatically
+- **New: merged two-level headers** - merged group headers copied from Excel become grouped columns, rendered consistently in the input area, live preview, PNG and exported page
+- **Header detection rewritten** - based on numeric density, tolerating a blank top-left cell, a column without a name, and numeric column names (2024 / 1660)
+- **Title rows no longer eat a header row** - a big title copied with the table is pulled out into the Page Title, and the Top-left Header follows the paste
+- **Number cleanup** - thousands separators, currency symbols, percent signs, full-width digits and dashes are parsed correctly
+- **Persistent undo bar** - stays at the bottom after a paste and restores everything in one click, title and corner label included
+- Smaller fixes: the missing big title in preview / PNG / exported page, and column width measurement during export
+
+### V1.0 (initial release)
+
+- The complete full-featured version: energy bars, winner highlighting, change percentages, 5 bar styles, 4 skins, sort by header, width-adaptive PNG, HTML export, custom template saving
 
 ## Copyright
 

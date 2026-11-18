@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -86,6 +86,16 @@
   .cols-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
   .cols-wrap .col-item{display:flex;align-items:center;gap:4px;background:var(--ui-chip-bg);padding:4px 8px;border-radius:6px}
   .col-item input{width:140px}
+  .col-item input.grp{width:66px;font-size:11.5px;opacity:.9}
+  #inputTable tr.group-row th{padding:3px 6px;font-size:11.5px;font-weight:600;color:var(--ui-accent-deep);background:var(--ui-chip-bg)}
+  #pasteUndoBar{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(16px);display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;background:#ffffff;color:#1a1a1a;border:1px solid rgba(0,0,0,.06);font:13px/1.4 "PingFang SC","Microsoft YaHei",sans-serif;box-shadow:0 10px 34px rgba(0,0,0,.22);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:99999}
+  #pasteUndoBar.show{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
+  #pasteUndoBar b{color:#009e93}
+  #pasteUndoBar .sync-tag{color:#5b6470;border-left:1px solid rgba(0,0,0,.12);padding-left:10px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #pasteUndoBar .undo-btn{background:#00c9b7;border:0;color:#04322d;font-weight:700;padding:5px 14px;border-radius:8px;cursor:pointer;font-size:12.5px;margin:0;box-shadow:none}
+  #pasteUndoBar .undo-btn:hover{background:#00e0cb;opacity:1}
+  #pasteUndoBar .x-btn{background:transparent;border:0;color:#9aa3ad;font-size:18px;line-height:1;cursor:pointer;padding:0 2px;margin:0;box-shadow:none}
+  #pasteUndoBar .x-btn:hover{color:#333;opacity:1}
   .row-tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:10px 0}
   .skin-picker{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
   .skin-picker button{padding:8px 14px;border-radius:8px}
@@ -143,6 +153,7 @@
 
 <div class="panel">
   <h3 style="margin-top:0">③ Rows (first row is the reference)</h3>
+  <div class="paste-hint">📋 Paste a whole block from Excel / WPS / Numbers: click any cell and press <b>Ctrl+V</b> - titles, column names, row names and merged two-level headers are detected automatically, rows and columns expand as needed; one-click undo</div>
   <table id="inputTable">
     <thead></thead>
     <tbody></tbody>
@@ -209,9 +220,9 @@
    Copyright & anti-theft marks: console output
    ============================================================ */
 console.log("%cComparison Table Generator - Full Featured", "font-size: 20px; font-weight: bold; color: #5b9bd5; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);");
-console.log("%cMade by WanChuGeMingTang - the warmer guide to retro digital fun", "font-size: 15px; color: #666; font-weight: bold;");
-
-console.log("%c⚠️ Originally developed by WanChuGeMingTang. Unauthorized resale or redistribution after removing the credit line is prohibited.", "color: #c0392b; font-weight: bold; font-size: 12px;");
+console.log("%cMade by WanChuGeMingTang", "font-size: 15px; color: #666; font-weight: bold;");
+console.log("%cthe warmer guide to retro digital fun", "font-size: 13px; color: #999; letter-spacing: 1px;");
+console.log("%c⚠️ Copyright: originally developed by WanChuGeMingTang. Please do not resell or redistribute without the credit line.", "color: #c0392b; font-weight: bold; font-size: 12px;");
 
 /* ================= Skin definitions ================= */
 const SKINS = {
@@ -325,11 +336,28 @@ tCrown.onchange = ()=>{ state.showCrown = tCrown.checked; updatePreview(); };
 tGold.onchange  = ()=>{ state.showGold  = tGold.checked;  updatePreview(); };
 
 /* ================= Column management ================= */
+/* ---- Grouped header helpers (Excel merged cells) ---- */
+function colHasGroup(){
+  return state.cols.some(c => (c.group || '').trim() !== '');
+}
+// Split columns into spans of consecutive identical groups: {name, count}
+function buildGroupSpans(cols){
+  const spans = [];
+  cols.forEach(c=>{
+    const g = (c.group || '').trim();
+    const last = spans[spans.length-1];
+    if(last && last.name === g) last.count++;
+    else spans.push({name:g, count:1});
+  });
+  return spans;
+}
+
 function renderCols(){
   const wrap = document.getElementById('colsWrap');
   wrap.innerHTML = state.cols.map((c,i)=>`
     <div class="col-item">
-      <input value="${escAttr(c.name)}" oninput="state.cols[${i}].name=this.value; updatePreview()">
+      <input value="${escAttr(c.name)}" oninput="state.cols[${i}].name=this.value; renderInputHead(); updatePreview()">
+      <input class="grp" placeholder="Group" value="${escAttr(c.group||'')}" oninput="state.cols[${i}].group=this.value; renderInputHead(); updatePreview()">
       <select onchange="state.cols[${i}].type=this.value; render()">
         <option value="number" ${c.type==='number'?'selected':''}>Number</option>
         <option value="percent" ${c.type==='percent'?'selected':''}>Percentage</option>
@@ -338,7 +366,7 @@ function renderCols(){
     </div>`).join('');
 }
 function addCol(){
-  state.cols.push({name:'New Metric', type:'number'});
+  state.cols.push({name:'New Metric', type:'number', group:''});
   state.rows.forEach(r=>r.v.push(0));
   render();
 }
@@ -352,17 +380,31 @@ function removeCol(i){
 }
 
 /* ================= Row management ================= */
-function renderInput(){
+// Redraw only the input table header (renaming a column or group) so the tbody is not rebuilt and focus is kept
+function renderInputHead(){
   const thead = document.querySelector('#inputTable thead');
+  if(!thead) return;
+  const grouped = colHasGroup();
+  const grpRow = grouped
+    ? `<tr class="group-row"><th rowspan="2"></th><th rowspan="2">Name</th>${buildGroupSpans(state.cols)
+        .map(g=>`<th colspan="${g.count}">${g.name?escHTML(g.name):''}</th>`).join('')}<th rowspan="2"></th></tr>`
+    : '';
+  const colCells = state.cols.map(c=>`<th>${escHTML(c.name)}<span class="col-type">(${c.type==='percent'?'%':'Number'})</span></th>`).join('');
+  thead.innerHTML = grpRow + `<tr>${grouped?'':'<th></th><th>Name</th>'}${colCells}${grouped?'':'<th></th>'}</tr>`;
+}
+
+function renderInput(){
   const tbody = document.querySelector('#inputTable tbody');
-  thead.innerHTML = `<tr><th></th><th>Name</th>${state.cols.map(c=>`<th>${escHTML(c.name)}<span class="col-type">(${c.type==='percent'?'%':'Number'})</span></th>`).join('')}<th></th></tr>`;
+  renderInputHead();
   tbody.innerHTML = state.rows.map((r,i)=>`
     <tr>
       <td>${i===0?'REF':'&nbsp;'}</td>
-      <td><input class="name" value="${escAttr(r.name)}" oninput="state.rows[${i}].name=this.value; updatePreview()"></td>
-      ${state.cols.map((c,j)=>`<td><input class="num" type="number" step="any" value="${r.v[j]}" oninput="state.rows[${i}].v[${j}]=+this.value; updatePreview()"></td>`).join('')}
+      <td><input class="name" data-r="${i}" data-c="-1" value="${escAttr(r.name)}" oninput="state.rows[${i}].name=this.value; updatePreview()"></td>
+      ${state.cols.map((c,j)=>`<td><input class="num" type="number" step="any" data-r="${i}" data-c="${j}" value="${r.v[j]}" oninput="state.rows[${i}].v[${j}]=+this.value; updatePreview()"></td>`).join('')}
       <td><button class="danger" onclick="removeRow(${i})" ${state.rows.length<=2?'disabled':''}>Delete</button></td>
     </tr>`).join('');
+  // Paste is delegated on tbody: re-assigned on every render, so handlers are never bound twice
+  tbody.onpaste = handleNumPaste;
 }
 function addRow(){
   state.rows.push({name:'New GPU', v:state.cols.map(()=>0)});
@@ -371,6 +413,295 @@ function addRow(){
 function removeRow(i){
   if(state.rows.length<=2){ alert('Keep at least two rows (including the reference).'); return; }
   state.rows.splice(i,1);
+  render();
+}
+
+/* ================= Bulk paste (V1.1) =================
+   Text copied from Excel / WPS / Numbers is tab-separated (TSV).
+   Parsed with zero dependencies and no external library, so the tool stays a single offline file.
+*/
+let pasteUndo = null; // state snapshot taken before pasting, used by undo
+
+// Number cleanup: full-width to half-width, strip thousands separators / currency symbols / spaces / percent signs
+function cleanCellNum(raw){
+  if(raw == null) return NaN;
+  let t = String(raw).trim();
+  if(t === '') return NaN;
+  t = t.replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)); // full-width -> half-width
+  t = t.replace(/[,\s¥$€£￥%]/g, '');   // thousands separators, currency, spaces, percent
+  t = t.replace(/[—–－]/g, '-');        // every kind of dash counts as a minus
+  if(t === '' || t === '-' || t === '+') return NaN;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+// Split into a 2D matrix: tab-separated columns; a line without tabs is a single cell
+function splitPasteMatrix(text){
+  return text.replace(/\r\n?/g, '\n').split('\n')
+    .filter(l => l.trim() !== '')
+    .map(l => l.includes('\t') ? l.split('\t') : [l]);
+}
+
+// "Numeric density" of a row: numeric cells / non-empty cells; -1 for an empty row
+function numDensity(row){
+  const cells = (row || []).filter(c => String(c == null ? '' : c).trim() !== '');
+  if(!cells.length) return -1;
+  const n = cells.filter(c => !isNaN(cleanCellNum(c))).length;
+  return n / cells.length;
+}
+// Detect the number of top header rows (0 / 1 / 2) by numeric density, tolerating empty cells and numeric column names
+function detectHeaderRows(M){
+  if(M.length < 2) return 0;
+  let n = 0;
+  for(let i = 0; i < Math.min(2, M.length - 1); i++){
+    const d = numDensity(M[i]);
+    if(d >= 0 && d < 0.4) n++; else break;
+  }
+  if(n > 0) return n;
+
+  // Second pass: the first row holds text but is denser than the data area (e.g. "Model | 2024 | 2025")
+  const d0 = numDensity(M[0]);
+  if(d0 < 0) return 0;
+  const bodyD = M.slice(1).map(numDensity).filter(x => x >= 0);
+  const avg = bodyD.length ? bodyD.reduce((a,b)=>a+b,0)/bodyD.length : -1;
+  const hasText = (M[0] || []).some(c => {
+    const t = String(c == null ? '' : c).trim();
+    return t !== '' && isNaN(cleanCellNum(t));
+  });
+  if(hasText && d0 < 0.85 && avg > d0 + 0.15) return 1;
+
+  // Third pass: every cell after the first is a year (19xx / 20xx) - an extremely common header style
+  const tail = (M[0] || []).slice(1).filter(c => String(c == null ? '' : c).trim() !== '');
+  if(tail.length && tail.every(c => /^(19|20)\d{2}$/.test(String(c).trim())) && avg >= 0) return 1;
+
+  return 0;
+}
+// Merged-cell inheritance: empty cells reuse the nearest non-empty value on the left (Excel keeps only the top-left value)
+function fillMergedNames(row){
+  const out = (row || []).slice();
+  let last = '';
+  for(let i = 1; i < out.length; i++){
+    const t = String(out[i] == null ? '' : out[i]).trim();
+    if(t === ''){ out[i] = last; } else { last = t; }
+  }
+  return out;
+}
+
+// Does the first row look like a "big title": a cross-column merged cell copies as one value plus empty cells
+function looksLikeTitleRow(M){
+  if(!M || M.length < 3) return false;                 // at least title + header + 1 data row
+  const nonEmpty = (M[0] || []).filter(c => String(c == null ? '' : c).trim() !== '');
+  if(nonEmpty.length !== 1) return false;
+  const t = String(nonEmpty[0]).trim();
+  if(t === '' || !isNaN(cleanCellNum(t))) return false; // a pure number is not a title
+  const maxW = Math.max.apply(null, M.slice(1).map(r => (r || []).length));
+  return maxW >= 2;                                    // the rest must be multi-column, so a single-column paste is never mistaken for a title
+}
+function firstNonEmpty(row){
+  const hit = (row || []).find(c => String(c == null ? '' : c).trim() !== '');
+  return hit == null ? '' : String(hit).trim();
+}
+// Does the first column hold text row names? (width taken from the whole table, not just the first row)
+function rowsHaveNameCol(rows){
+  if(!rows || !rows.length) return false;
+  const maxW = Math.max.apply(null, rows.map(r => (r || []).length));
+  if(maxW < 2) return false;
+  return rows.every(r => {
+    const t = String((r || [])[0] == null ? '' : r[0]).trim();
+    return t !== '' && isNaN(cleanCellNum(t));
+  });
+}
+
+function handleNumPaste(e){
+  const el = e.target;
+  if(!el || !el.matches || !el.matches('input.num, input.name')) return;
+  const cd = e.clipboardData || window.clipboardData;
+  if(!cd) return;
+  const text = cd.getData('text/plain');
+  if(!text) return;
+  const norm = text.replace(/\r\n?/g, '\n');
+
+  // Single-cell paste: take over only when cleanup is needed (thousands separators, currency, ...), otherwise leave it to the browser
+  if(norm.indexOf('\t') < 0 && norm.indexOf('\n') < 0){
+    const n = cleanCellNum(norm);
+    const c = el.dataset ? +el.dataset.c : -1;
+    if(!isNaN(n) && /\D/.test(norm.trim()) && c >= 0){
+      e.preventDefault();
+      const r = +el.dataset.r;
+      state.rows[r].v[c] = n;
+      render();
+    }
+    return;
+  }
+
+  e.preventDefault();
+  applyPasteMatrix(splitPasteMatrix(norm), el);
+}
+
+function applyPasteMatrix(M0, el){
+  if(!M0 || !M0.length || !M0[0].length) return;
+
+  /* Title row stripping (V1.1.2)
+     Copying a whole sheet turns a cross-column merged title into one value plus empty cells.
+     It must be removed before header detection, otherwise it eats one header row
+     and pushes the real header (both rows of a two-level header) into the data area. */
+  let M = M0;
+  let titleText = null;
+  if(looksLikeTitleRow(M0)){
+    const stripped = M0.slice(1);
+    if(detectHeaderRows(stripped) >= 1 || rowsHaveNameCol(stripped)){
+      titleText = firstNonEmpty(M0[0]);
+      M = stripped;
+    }
+  }
+
+  /* Header detection (V1.1.1): no longer requires "every cell non-empty and non-numeric";
+     numeric density is used instead. Tolerates a blank top-left cell, a column with no name,
+     numeric column names (2024 / 1660) and empty cells left by merged header cells. Two detected rows become a two-level header. */
+  const headerRowCount = detectHeaderRows(M);
+  const hasHeaderRow   = headerRowCount >= 1;
+  const groupRow       = headerRowCount === 2 ? fillMergedNames(M[0]) : null; // top layer: merged groups
+  const headerRow      = headerRowCount >= 1 ? M[headerRowCount - 1] : null;  // bottom layer: column names
+
+  // Row-name detection: only the data area (header rows excluded)
+  const bodyRows0 = hasHeaderRow ? M.slice(headerRowCount) : M;
+  const hasHeaderCol = rowsHaveNameCol(bodyRows0);
+
+  const dataRows   = bodyRows0;
+  const wholeTable = hasHeaderRow || hasHeaderCol; // whole-table paste -> rebuild; otherwise fill locally from the focused cell
+
+  const offset = hasHeaderCol ? 1 : 0;
+  // Column count is the max of header row and widest data row, so no column name is lost when the header is wider
+  let colCount = 0;
+  dataRows.forEach(r => { colCount = Math.max(colCount, Math.max(0, r.length - offset)); });
+  if(headerRow) colCount = Math.max(colCount, Math.max(0, headerRow.length - offset));
+
+  // Local fill: the pasted block may hold only row names with no data columns
+  if(!wholeTable && colCount === 0){
+    colCount = 1;
+  }
+  if(colCount === 0) return;
+
+  // Snapshot (for undo)
+  pasteUndo = JSON.stringify(state);
+
+  let filled = 0;
+
+  if(wholeTable){
+    /* ---- Whole-table rebuild: columns and rows follow the pasted content exactly, no leftovers ---- */
+    const newCols = [];
+    for(let j = 0; j < colCount; j++){
+      const raw = headerRow ? headerRow[j + offset] : null;
+      let nm = raw == null ? '' : String(raw).trim();
+      const grp = groupRow ? String(groupRow[j + offset] == null ? '' : groupRow[j + offset]).trim() : '';
+      if(!nm) nm = grp ? (grp + ' ' + (j + 1)) : ('Metric ' + (j + 1)); // fall back to the group name when a sub-column has no name
+      newCols.push({name: nm, type:'number', group: grp});
+    }
+    const newRows = dataRows.map((row, i) => {
+      const nmRaw = hasHeaderCol ? row[0] : null;
+      const nm = nmRaw == null ? '' : String(nmRaw).trim();
+      const v = newCols.map((_, j) => {
+        const n = cleanCellNum(row[j + offset]);
+        if(isNaN(n)) return 0;
+        filled++;
+        return n;
+      });
+      return {name: nm || ('Model ' + (i + 1)), v: v};
+    });
+    if(newRows.length){
+      state.cols = newCols;
+      state.rows = newRows;
+      /* ① Sync (V1.1.2): a whole-table paste replaces the table, so title and top-left header follow the paste
+         Title: use the pasted title row when there is one, otherwise clear it (an old title must not sit above new data)
+         Top-left header: follow the paste strictly, clear it when empty */
+      state.pageTitle   = titleText || '';
+      state.cornerLabel = headerRow ? String(headerRow[0] == null ? '' : headerRow[0]).trim() : '';
+    }
+  }else{
+    /* ---- Local fill: write right and down from the focused cell, growing rows and columns as needed ---- */
+    const startR = el.dataset && el.dataset.r !== undefined ? +el.dataset.r : 0;
+    const c0 = el.dataset && el.dataset.c !== undefined ? +el.dataset.c : 0;
+    const startC = Math.max(0, c0);
+
+    const needCols = Math.max(state.cols.length, startC + colCount);
+    const needRows = Math.max(state.rows.length, startR + dataRows.length);
+
+    while(state.cols.length < needCols) state.cols.push({name:'Metric ' + (state.cols.length + 1), type:'number'});
+    state.rows.forEach(r => { while(r.v.length < state.cols.length) r.v.push(0); });
+    while(state.rows.length < needRows){
+      state.rows.push({name:'Model ' + (state.rows.length + 1), v:state.cols.map(() => 0)});
+    }
+
+    dataRows.forEach((row, i) => {
+      const ri = startR + i;
+      if(!state.rows[ri]) return;
+      const nmRaw = hasHeaderCol ? row[0] : null;
+      if(nmRaw != null){
+        const nm = String(nmRaw).trim();
+        if(nm !== '') state.rows[ri].name = nm;
+      }
+      for(let j = 0; j < colCount; j++){
+        const n = cleanCellNum(row[j + offset]);
+        if(!isNaN(n)){ state.rows[ri].v[startC + j] = n; filled++; }
+      }
+    });
+  }
+
+  state.sort = {col:-1, dir:1};          // cancel sorting after a paste so the view cannot get scrambled
+  document.getElementById('pageTitle').value   = state.pageTitle;
+  document.getElementById('cornerLabel').value = state.cornerLabel;
+  render();
+  const syncNote = wholeTable
+    ? (titleText ? ('Title synced: ' + titleText) : 'Title cleared · corner synced')
+    : '';
+  showPasteTip(state.rows.length, state.cols.length, filled, syncNote);
+}
+
+const PASTE_HINT_DEFAULT = '📋 Paste a whole block from Excel / WPS / Numbers: click any cell and press <b>Ctrl+V</b> - titles, column names, row names and merged two-level headers are detected automatically, rows and columns expand as needed; one-click undo';
+
+// Paste result: a fixed bottom bar that never disappears by itself (undo is always reachable) until you undo or close it
+function showPasteTip(rows, cols, filled, syncNote){
+  let bar = document.getElementById('pasteUndoBar');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'pasteUndoBar';
+    document.body.appendChild(bar);
+  }
+  bar.innerHTML = '<span>✅ Pasted <b>' + rows + ' rows × ' + cols + ' cols</b>, ' + filled + ' values filled</span>'
+    + (syncNote ? '<span class="sync-tag">' + escHTML(syncNote) + '</span>' : '')
+    + '<button class="undo-btn" onclick="undoPaste()">Undo</button>'
+    + '<button class="x-btn" onclick="hidePasteTip()" title="Close">×</button>';
+  bar.classList.add('show');
+}
+
+function restorePasteHint(){
+  const hint = document.querySelector('.paste-hint');
+  if(hint) hint.innerHTML = PASTE_HINT_DEFAULT;
+}
+
+function hidePasteTip(){
+  const bar = document.getElementById('pasteUndoBar');
+  if(bar) bar.classList.remove('show');
+}
+
+function undoPaste(){
+  if(!pasteUndo) return;
+  const saved = JSON.parse(pasteUndo);
+  pasteUndo = null;
+  state.pageTitle    = saved.pageTitle;
+  state.cornerLabel  = saved.cornerLabel;
+  state.note         = saved.note;
+  state.cols         = saved.cols;
+  state.rows         = saved.rows;
+  state.sort         = saved.sort;
+  state.showCrown    = saved.showCrown;
+  state.showGold     = saved.showGold;
+  document.getElementById('pageTitle').value   = state.pageTitle;
+  document.getElementById('cornerLabel').value = state.cornerLabel;
+  document.getElementById('noteText').value    = state.note;
+  document.getElementById('toggleCrown').checked = state.showCrown;
+  document.getElementById('toggleGold').checked  = state.showGold;
+  hidePasteTip();
   render();
 }
 
@@ -435,6 +766,7 @@ function buildStyleBlock(skin, bar){
     .table-root{${varStyle}font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--text);}
     table{border-collapse:collapse;width:100%;min-width:860px;font-size:13px;table-layout:auto;}
     th{text-align:center;padding:8px;border-bottom:1px solid var(--th-border);color:var(--th);font-weight:500;}
+    thead tr.group-row th{padding:5px 6px;font-size:12px;font-weight:600;}
     th:first-child{text-align:left;}
     td{padding:8px;vertical-align:middle;border-bottom:1px solid var(--td-border);}
     td:first-child{font-weight:600;white-space:nowrap;}
@@ -450,6 +782,7 @@ function buildStyleBlock(skin, bar){
     .down{background:var(--down-bg);color:var(--down-fg);}
     .crown{font-size:12px;margin-left:4px;filter:drop-shadow(0 0 2px rgba(0,0,0,.15));}
     .note{margin-top:10px;font-size:12px;color:var(--note);}
+.paste-hint{margin:0 0 10px;padding:10px 14px;border-radius:8px;font-size:12.5px;line-height:1.6;color:var(--text);background:rgba(0,201,183,0.10);border:1px solid rgba(0,201,183,0.35);}
 .preview-title{margin-bottom:12px;font-size:20px;font-weight:700;color:var(--text);line-height:1.3;}
   `;
 
@@ -590,7 +923,17 @@ function updatePreview(){
     modelRows.push({ name: r.name, isBase, cells: modelCells });
     return `<tr class="${cls}"><td>${escHTML(r.name)}</td>${cells}</tr>`;
   }).join('');
-  lastModel = { rows: modelRows, headers: state.cols.map(c=>c.name), corner: state.cornerLabel };
+  lastModel = { rows: modelRows, headers: state.cols.map(c=>c.name),
+                groups: state.cols.map(c=>(c.group||'').trim()), corner: state.cornerLabel };
+
+  const grouped = colHasGroup();
+  const grpRowHTML = grouped
+    ? `<tr class="group-row"><th rowspan="2">${escHTML(state.cornerLabel)}</th>${buildGroupSpans(state.cols)
+        .map(g=>`<th colspan="${g.count}">${g.name?escHTML(g.name):''}</th>`).join('')}</tr>`
+    : '';
+  const colHeadHTML = grouped
+    ? `<tr>${headCells}</tr>`
+    : `<tr><th>${escHTML(state.cornerLabel)}</th>${headCells}</tr>`;
 
   const tableHTML =
 `<table>
@@ -598,9 +941,7 @@ function updatePreview(){
     <col style="width:${firstColW}px">
     ${state.cols.map(()=>`<col>`).join('')}
   </colgroup>
-  <thead><tr>
-    <th>${escHTML(state.cornerLabel)}</th>${headCells}
-  </tr></thead>
+  <thead>${grpRowHTML}${colHeadHTML}</thead>
   <tbody>
 ${bodyRows}
   </tbody>
@@ -631,7 +972,7 @@ function render(){
 /* ================= Export HTML (inject anti-theft comment marks) ================= */
 function buildFullHTML(tableHTML, css){
   return `<!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>${escHTML(state.pageTitle)}</title>
@@ -639,11 +980,9 @@ function buildFullHTML(tableHTML, css){
   ============================================================
   Comparison Table Generator - Full Featured
   Made by WanChuGeMingTang - the warmer guide to retro digital fun
-  ============================================================
   ⚠️ Copyright Notice:
   This table was generated by Comparison Table Generator,
-  made by WanChuGeMingTang. Feel free to use the generated
-  tables, but please do not resell the generator source code.
+  made by WanChuGeMingTang. Feel free to use the generated tables, but please do not resell the generator source code.
   ============================================================
 -->
 <style>${css}</style>
@@ -698,7 +1037,7 @@ function downloadTemplate(){
       pageTitle: state.pageTitle,
       cornerLabel: state.cornerLabel,
       note: state.note,
-      cols: state.cols.map(c=>({name:c.name, type:c.type})),
+      cols: state.cols.map(c=>({name:c.name, type:c.type, group:c.group||''})),
       rows: state.rows.map(r=>({name:r.name, v:r.v.map(()=>0)})),
       showCrown: state.showCrown,
       showGold: state.showGold
@@ -769,11 +1108,19 @@ function exportPNG(){
     ctx.textAlign = 'left';
   }
 
-  /* ---- Column widths: read real DOM widths, normalize by canvas width ---- */
-  const ths = table.querySelectorAll('thead th');
+  /* ---- Column widths: read the real DOM widths and normalize. With a two-level header thead th count ≠ column count, so use the first tbody row td ---- */
+  const theadEl = table.querySelector('thead');
+  const headTrs = theadEl ? Array.from(theadEl.querySelectorAll('tr')) : [];
+  const isTwoTier = headTrs.length > 1;
   const colWidths = [];
   table.querySelectorAll('colgroup col').forEach(c=>colWidths.push(parseFloat(c.style.width)||0));
-  ths.forEach((th,i)=>{ if(!colWidths[i]) colWidths[i] = th.getBoundingClientRect().width; });
+  const firstTr = table.querySelector('tbody tr');
+  if(firstTr){
+    firstTr.querySelectorAll('td').forEach((td,i)=>{
+      const w = td.getBoundingClientRect().width;
+      if(w) colWidths[i] = w;
+    });
+  }
   const domTotal = colWidths.reduce((a,b)=>a+b,0);
   if(domTotal > 0 && Math.abs(domTotal - rect.width) > 1){
     const ratio = rect.width / domTotal;
@@ -785,14 +1132,41 @@ function exportPNG(){
     drawText(state.pageTitle, startX + 2, padding + titleH/2, FONT(700,20), col('--text'), 'left');
   }
 
-  /* ---- Table header ---- */
-  const headerH = ths.length ? ths[0].getBoundingClientRect().height : 30;
+  /* ---- Header (two-level: merged groups on top, column names below) ---- */
+  const headerH = theadEl ? theadEl.getBoundingClientRect().height : 30;
+  const groupH = isTwoTier && headTrs[0] ? headTrs[0].getBoundingClientRect().height : 0;
+  const colHeadH = Math.max(0, headerH - groupH);
   const headers = [lastModel.corner].concat(lastModel.headers);
+  const groups = lastModel.groups || [];
+
+  if(groupH > 0){
+    // top layer: span consecutive identical groups, text centered over the whole span
+    let gx = startX + (colWidths[0] || 0);
+    for(let j = 0; j < groups.length;){
+      let k = j;
+      while(k + 1 < groups.length && groups[k+1] === groups[j]) k++;
+      const gw = colWidths.slice(j+1, k+2).reduce((a,b)=>a+b, 0);
+      if(groups[j]){
+        drawText(groups[j], gx + gw/2, startY + groupH/2, FONT(600,12.5), col('--th'), 'center');
+        ctx.beginPath();
+        ctx.strokeStyle = col('--th-border');
+        ctx.lineWidth = 1;
+        ctx.moveTo(gx, startY + groupH);
+        ctx.lineTo(gx + gw, startY + groupH);
+        ctx.stroke();
+      }
+      gx += gw;
+      j = k + 1;
+    }
+  }
+
   let x = startX;
-  const headY = startY + headerH/2;
+  const headY = startY + groupH + colHeadH/2;
   headers.forEach((txt, j)=>{
     const w = colWidths[j];
-    drawText(txt, j===0 ? x+8 : x+w/2, headY,
+    // the corner cell spans 2 rows when grouped and is centered over the whole header
+    const ty = (j === 0 && groupH > 0) ? startY + headerH/2 : headY;
+    drawText(txt, j===0 ? x+8 : x+w/2, ty,
              FONT(500,13), col('--th'), j===0 ? 'left':'center');
     ctx.beginPath();
     ctx.strokeStyle = col('--th-border');
@@ -940,7 +1314,8 @@ function exportPNG(){
     ctx.arcTo(x, y, x+w, y, r);
     ctx.closePath();
   }
-  // Small crown: draw emoji 👑 to match the page preview
+  // Crown: drawn directly as an emoji, exactly like the 👑 in the page preview
+  // (vector paths get rendered as a deformed hill in some environments, so the native emoji is used)
   function drawCrown(ctx, cx, cy, color){
     ctx.save();
     ctx.textBaseline = 'middle';

@@ -88,6 +88,16 @@
   .cols-wrap{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
   .cols-wrap .col-item{display:flex;align-items:center;gap:4px;background:var(--ui-chip-bg);padding:4px 8px;border-radius:6px}
   .col-item input{width:140px}
+  .col-item input.grp{width:66px;font-size:11.5px;opacity:.9}
+  #inputTable tr.group-row th{padding:3px 6px;font-size:11.5px;font-weight:600;color:var(--ui-accent-deep);background:var(--ui-chip-bg)}
+  #pasteUndoBar{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(16px);display:flex;align-items:center;gap:10px;padding:11px 14px;border-radius:12px;background:#ffffff;color:#1a1a1a;border:1px solid rgba(0,0,0,.06);font:13px/1.4 "PingFang SC","Microsoft YaHei",sans-serif;box-shadow:0 10px 34px rgba(0,0,0,.22);opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;z-index:99999}
+  #pasteUndoBar.show{opacity:1;pointer-events:auto;transform:translateX(-50%) translateY(0)}
+  #pasteUndoBar b{color:#009e93}
+  #pasteUndoBar .sync-tag{color:#5b6470;border-left:1px solid rgba(0,0,0,.12);padding-left:10px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #pasteUndoBar .undo-btn{background:#00c9b7;border:0;color:#04322d;font-weight:700;padding:5px 14px;border-radius:8px;cursor:pointer;font-size:12.5px;margin:0;box-shadow:none}
+  #pasteUndoBar .undo-btn:hover{background:#00e0cb;opacity:1}
+  #pasteUndoBar .x-btn{background:transparent;border:0;color:#9aa3ad;font-size:18px;line-height:1;cursor:pointer;padding:0 2px;margin:0;box-shadow:none}
+  #pasteUndoBar .x-btn:hover{color:#333;opacity:1}
   .row-tools{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:10px 0}
   .skin-picker{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
   .skin-picker button{padding:8px 14px;border-radius:8px}
@@ -145,6 +155,7 @@
 
 <div class="panel">
   <h3 style="margin-top:0">③ 行数据（第一行为参照行）</h3>
+  <div class="paste-hint">📋 支持从 Excel / WPS / Numbers 复制整块数据，点任意单元格按 <b>Ctrl+V</b> 粘贴：自动识别标题 / 列名 / 行名 / 合并表头（双层），自动扩行扩列；可一键撤销</div>
   <table id="inputTable">
     <thead></thead>
     <tbody></tbody>
@@ -327,11 +338,28 @@ tCrown.onchange = ()=>{ state.showCrown = tCrown.checked; updatePreview(); };
 tGold.onchange  = ()=>{ state.showGold  = tGold.checked;  updatePreview(); };
 
 /* ================= 列管理 ================= */
+/* ---- 分组表头（Excel 合并居中单元格）工具 ---- */
+function colHasGroup(){
+  return state.cols.some(c => (c.group || '').trim() !== '');
+}
+// 把列按连续相同分组切成 span：{name, count}
+function buildGroupSpans(cols){
+  const spans = [];
+  cols.forEach(c=>{
+    const g = (c.group || '').trim();
+    const last = spans[spans.length-1];
+    if(last && last.name === g) last.count++;
+    else spans.push({name:g, count:1});
+  });
+  return spans;
+}
+
 function renderCols(){
   const wrap = document.getElementById('colsWrap');
   wrap.innerHTML = state.cols.map((c,i)=>`
     <div class="col-item">
-      <input value="${escAttr(c.name)}" oninput="state.cols[${i}].name=this.value; updatePreview()">
+      <input value="${escAttr(c.name)}" oninput="state.cols[${i}].name=this.value; renderInputHead(); updatePreview()">
+      <input class="grp" placeholder="分组(可选)" value="${escAttr(c.group||'')}" oninput="state.cols[${i}].group=this.value; renderInputHead(); updatePreview()">
       <select onchange="state.cols[${i}].type=this.value; render()">
         <option value="number" ${c.type==='number'?'selected':''}>数值</option>
         <option value="percent" ${c.type==='percent'?'selected':''}>百分比</option>
@@ -340,7 +368,7 @@ function renderCols(){
     </div>`).join('');
 }
 function addCol(){
-  state.cols.push({name:'新指标', type:'number'});
+  state.cols.push({name:'新指标', type:'number', group:''});
   state.rows.forEach(r=>r.v.push(0));
   render();
 }
@@ -354,17 +382,31 @@ function removeCol(i){
 }
 
 /* ================= 行管理 ================= */
-function renderInput(){
+// 只重绘输入表格表头（改列名/分组时用，避免重建 tbody 导致输入框失焦）
+function renderInputHead(){
   const thead = document.querySelector('#inputTable thead');
+  if(!thead) return;
+  const grouped = colHasGroup();
+  const grpRow = grouped
+    ? `<tr class="group-row"><th rowspan="2"></th><th rowspan="2">名称</th>${buildGroupSpans(state.cols)
+        .map(g=>`<th colspan="${g.count}">${g.name?escHTML(g.name):''}</th>`).join('')}<th rowspan="2"></th></tr>`
+    : '';
+  const colCells = state.cols.map(c=>`<th>${escHTML(c.name)}<span class="col-type">(${c.type==='percent'?'%':'数值'})</span></th>`).join('');
+  thead.innerHTML = grpRow + `<tr>${grouped?'':'<th></th><th>名称</th>'}${colCells}${grouped?'':'<th></th>'}</tr>`;
+}
+
+function renderInput(){
   const tbody = document.querySelector('#inputTable tbody');
-  thead.innerHTML = `<tr><th></th><th>名称</th>${state.cols.map(c=>`<th>${escHTML(c.name)}<span class="col-type">(${c.type==='percent'?'%':'数值'})</span></th>`).join('')}<th></th></tr>`;
+  renderInputHead();
   tbody.innerHTML = state.rows.map((r,i)=>`
     <tr>
       <td>${i===0?'参照':'&nbsp;'}</td>
-      <td><input class="name" value="${escAttr(r.name)}" oninput="state.rows[${i}].name=this.value; updatePreview()"></td>
-      ${state.cols.map((c,j)=>`<td><input class="num" type="number" step="any" value="${r.v[j]}" oninput="state.rows[${i}].v[${j}]=+this.value; updatePreview()"></td>`).join('')}
+      <td><input class="name" data-r="${i}" data-c="-1" value="${escAttr(r.name)}" oninput="state.rows[${i}].name=this.value; updatePreview()"></td>
+      ${state.cols.map((c,j)=>`<td><input class="num" type="number" step="any" data-r="${i}" data-c="${j}" value="${r.v[j]}" oninput="state.rows[${i}].v[${j}]=+this.value; updatePreview()"></td>`).join('')}
       <td><button class="danger" onclick="removeRow(${i})" ${state.rows.length<=2?'disabled':''}>删除</button></td>
     </tr>`).join('');
+  // 粘贴统一走事件委托：每次重渲染都覆盖赋值，不会重复绑定
+  tbody.onpaste = handleNumPaste;
 }
 function addRow(){
   state.rows.push({name:'新显卡', v:state.cols.map(()=>0)});
@@ -373,6 +415,295 @@ function addRow(){
 function removeRow(i){
   if(state.rows.length<=2){ alert('至少保留两行（含参照行）'); return; }
   state.rows.splice(i,1);
+  render();
+}
+
+/* ================= 批量粘贴（V1.1） =================
+   从 Excel / WPS / Numbers 复制出来的文本就是制表符分隔（TSV），
+   零依赖直接解析，不引入任何外部库，保持单文件离线可用。
+*/
+let pasteUndo = null; // 粘贴前的 state 快照，供撤销
+
+// 数字清洗：全角转半角、去千分位逗号 / 货币符号 / 空格 / 百分号
+function cleanCellNum(raw){
+  if(raw == null) return NaN;
+  let t = String(raw).trim();
+  if(t === '') return NaN;
+  t = t.replace(/[\uFF01-\uFF5E]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0xFEE0)); // 全角→半角
+  t = t.replace(/[,\s¥$€£￥%]/g, '');   // 千分位、货币、空格、百分号
+  t = t.replace(/[—–－]/g, '-');        // 各种破折号当负号
+  if(t === '' || t === '-' || t === '+') return NaN;
+  const n = Number(t);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+// 切成二维矩阵：优先按制表符分列，无制表符则按整行单值处理
+function splitPasteMatrix(text){
+  return text.replace(/\r\n?/g, '\n').split('\n')
+    .filter(l => l.trim() !== '')
+    .map(l => l.includes('\t') ? l.split('\t') : [l]);
+}
+
+// 行的"数字密度"：可解析为数字的格子 / 非空格子；整行空返回 -1
+function numDensity(row){
+  const cells = (row || []).filter(c => String(c == null ? '' : c).trim() !== '');
+  if(!cells.length) return -1;
+  const n = cells.filter(c => !isNaN(cleanCellNum(c))).length;
+  return n / cells.length;
+}
+// 识别顶部表头行数（0 / 1 / 2）：按数字密度判定，容忍空单元格与纯数字列名
+function detectHeaderRows(M){
+  if(M.length < 2) return 0;
+  let n = 0;
+  for(let i = 0; i < Math.min(2, M.length - 1); i++){
+    const d = numDensity(M[i]);
+    if(d >= 0 && d < 0.4) n++; else break;
+  }
+  if(n > 0) return n;
+
+  // 二级判定：首行含文字格、密度虽偏高但明显低于数据区（如「型号 | 2024 | 2025」整行都像数字时）
+  const d0 = numDensity(M[0]);
+  if(d0 < 0) return 0;
+  const bodyD = M.slice(1).map(numDensity).filter(x => x >= 0);
+  const avg = bodyD.length ? bodyD.reduce((a,b)=>a+b,0)/bodyD.length : -1;
+  const hasText = (M[0] || []).some(c => {
+    const t = String(c == null ? '' : c).trim();
+    return t !== '' && isNaN(cleanCellNum(t));
+  });
+  if(hasText && d0 < 0.85 && avg > d0 + 0.15) return 1;
+
+  // 三级判定：首行除首列外全是年份（19xx / 20xx），这是极常见的列名写法
+  const tail = (M[0] || []).slice(1).filter(c => String(c == null ? '' : c).trim() !== '');
+  if(tail.length && tail.every(c => /^(19|20)\d{2}$/.test(String(c).trim())) && avg >= 0) return 1;
+
+  return 0;
+}
+// 合并单元格继承：空格子沿用左侧最近的非空值（Excel 复制合并格只有左上角有值）
+function fillMergedNames(row){
+  const out = (row || []).slice();
+  let last = '';
+  for(let i = 1; i < out.length; i++){
+    const t = String(out[i] == null ? '' : out[i]).trim();
+    if(t === ''){ out[i] = last; } else { last = t; }
+  }
+  return out;
+}
+
+// 首行是否像"大标题"：Excel 跨列合并后复制，只有第一格有值、后面补空
+function looksLikeTitleRow(M){
+  if(!M || M.length < 3) return false;                 // 至少 标题 + 表头 + 1 行数据
+  const nonEmpty = (M[0] || []).filter(c => String(c == null ? '' : c).trim() !== '');
+  if(nonEmpty.length !== 1) return false;
+  const t = String(nonEmpty[0]).trim();
+  if(t === '' || !isNaN(cleanCellNum(t))) return false; // 纯数字不当标题
+  const maxW = Math.max.apply(null, M.slice(1).map(r => (r || []).length));
+  return maxW >= 2;                                    // 下面必须是多列表格，避免单列数据首行被误判
+}
+function firstNonEmpty(row){
+  const hit = (row || []).find(c => String(c == null ? '' : c).trim() !== '');
+  return hit == null ? '' : String(hit).trim();
+}
+// 首列是否整列都是文字行名（行名识别，改用整表宽度判断，不再只看第一行长度）
+function rowsHaveNameCol(rows){
+  if(!rows || !rows.length) return false;
+  const maxW = Math.max.apply(null, rows.map(r => (r || []).length));
+  if(maxW < 2) return false;
+  return rows.every(r => {
+    const t = String((r || [])[0] == null ? '' : r[0]).trim();
+    return t !== '' && isNaN(cleanCellNum(t));
+  });
+}
+
+function handleNumPaste(e){
+  const el = e.target;
+  if(!el || !el.matches || !el.matches('input.num, input.name')) return;
+  const cd = e.clipboardData || window.clipboardData;
+  if(!cd) return;
+  const text = cd.getData('text/plain');
+  if(!text) return;
+  const norm = text.replace(/\r\n?/g, '\n');
+
+  // 单值粘贴：仅当需要清洗（带千分位/货币等）时接管，其余交给浏览器默认
+  if(norm.indexOf('\t') < 0 && norm.indexOf('\n') < 0){
+    const n = cleanCellNum(norm);
+    const c = el.dataset ? +el.dataset.c : -1;
+    if(!isNaN(n) && /\D/.test(norm.trim()) && c >= 0){
+      e.preventDefault();
+      const r = +el.dataset.r;
+      state.rows[r].v[c] = n;
+      render();
+    }
+    return;
+  }
+
+  e.preventDefault();
+  applyPasteMatrix(splitPasteMatrix(norm), el);
+}
+
+function applyPasteMatrix(M0, el){
+  if(!M0 || !M0.length || !M0[0].length) return;
+
+  /* 标题行剥离（V1.1.2）
+     Excel 整表复制时，跨列合并的大标题只会复制出"第一格有值、后面补空"的一行。
+     它必须在本轮表头识别之前摘掉，否则会白白占掉一层表头名额，
+     把真正的表头（双层表头时是两层）挤进数据区。 */
+  let M = M0;
+  let titleText = null;
+  if(looksLikeTitleRow(M0)){
+    const stripped = M0.slice(1);
+    if(detectHeaderRows(stripped) >= 1 || rowsHaveNameCol(stripped)){
+      titleText = firstNonEmpty(M0[0]);
+      M = stripped;
+    }
+  }
+
+  /* 表头识别（V1.1.1）：不再要求"每格都非空且非数字"，改为按数字密度判定。
+     可容纳：左上角留空、某列没写列名、列名本身是纯数字（2024 / 1660）、
+     以及 Excel 合并居中表头复制后留下的空单元格。识别到 2 行时按双层表头处理。 */
+  const headerRowCount = detectHeaderRows(M);
+  const hasHeaderRow   = headerRowCount >= 1;
+  const groupRow       = headerRowCount === 2 ? fillMergedNames(M[0]) : null; // 上层：合并分组
+  const headerRow      = headerRowCount >= 1 ? M[headerRowCount - 1] : null;  // 下层：列名
+
+  // 行名识别：只统计数据区（不受表头行干扰）
+  const bodyRows0 = hasHeaderRow ? M.slice(headerRowCount) : M;
+  const hasHeaderCol = rowsHaveNameCol(bodyRows0);
+
+  const dataRows   = bodyRows0;
+  const wholeTable = hasHeaderRow || hasHeaderCol; // 整表粘贴 → 重建；否则从焦点格局部填充
+
+  const offset = hasHeaderCol ? 1 : 0;
+  // 列数取「表头行」与「最宽数据行」的较大者：表头比数据宽时不丢列名
+  let colCount = 0;
+  dataRows.forEach(r => { colCount = Math.max(colCount, Math.max(0, r.length - offset)); });
+  if(headerRow) colCount = Math.max(colCount, Math.max(0, headerRow.length - offset));
+
+  // 局部填充时，粘贴块可能只有行名没有数据列
+  if(!wholeTable && colCount === 0){
+    colCount = 1;
+  }
+  if(colCount === 0) return;
+
+  // 快照（撤销用）
+  pasteUndo = JSON.stringify(state);
+
+  let filled = 0;
+
+  if(wholeTable){
+    /* ---- 整表重建：列与行完全按粘贴内容来，不留旧列旧行 ---- */
+    const newCols = [];
+    for(let j = 0; j < colCount; j++){
+      const raw = headerRow ? headerRow[j + offset] : null;
+      let nm = raw == null ? '' : String(raw).trim();
+      const grp = groupRow ? String(groupRow[j + offset] == null ? '' : groupRow[j + offset]).trim() : '';
+      if(!nm) nm = grp ? (grp + ' ' + (j + 1)) : ('指标 ' + (j + 1)); // 子列名为空时用分组名兜底
+      newCols.push({name: nm, type:'number', group: grp});
+    }
+    const newRows = dataRows.map((row, i) => {
+      const nmRaw = hasHeaderCol ? row[0] : null;
+      const nm = nmRaw == null ? '' : String(nmRaw).trim();
+      const v = newCols.map((_, j) => {
+        const n = cleanCellNum(row[j + offset]);
+        if(isNaN(n)) return 0;
+        filled++;
+        return n;
+      });
+      return {name: nm || ('型号 ' + (i + 1)), v: v};
+    });
+    if(newRows.length){
+      state.cols = newCols;
+      state.rows = newRows;
+      /* ① 同步（V1.1.2）：整表粘贴=换了一整张表，标题与左上角表头一律跟随粘贴内容
+         标题：粘贴带标题行就用粘贴的，没带就清空（否则旧标题会顶着新数据）
+         左上角表头：严格跟随，粘贴里是空的就清空 */
+      state.pageTitle   = titleText || '';
+      state.cornerLabel = headerRow ? String(headerRow[0] == null ? '' : headerRow[0]).trim() : '';
+    }
+  }else{
+    /* ---- 局部填充：从焦点格开始向右下写，不够自动扩行扩列 ---- */
+    const startR = el.dataset && el.dataset.r !== undefined ? +el.dataset.r : 0;
+    const c0 = el.dataset && el.dataset.c !== undefined ? +el.dataset.c : 0;
+    const startC = Math.max(0, c0);
+
+    const needCols = Math.max(state.cols.length, startC + colCount);
+    const needRows = Math.max(state.rows.length, startR + dataRows.length);
+
+    while(state.cols.length < needCols) state.cols.push({name:'指标 ' + (state.cols.length + 1), type:'number'});
+    state.rows.forEach(r => { while(r.v.length < state.cols.length) r.v.push(0); });
+    while(state.rows.length < needRows){
+      state.rows.push({name:'型号 ' + (state.rows.length + 1), v:state.cols.map(() => 0)});
+    }
+
+    dataRows.forEach((row, i) => {
+      const ri = startR + i;
+      if(!state.rows[ri]) return;
+      const nmRaw = hasHeaderCol ? row[0] : null;
+      if(nmRaw != null){
+        const nm = String(nmRaw).trim();
+        if(nm !== '') state.rows[ri].name = nm;
+      }
+      for(let j = 0; j < colCount; j++){
+        const n = cleanCellNum(row[j + offset]);
+        if(!isNaN(n)){ state.rows[ri].v[startC + j] = n; filled++; }
+      }
+    });
+  }
+
+  state.sort = {col:-1, dir:1};          // 粘贴后取消排序，避免视图错乱
+  document.getElementById('pageTitle').value   = state.pageTitle;
+  document.getElementById('cornerLabel').value = state.cornerLabel;
+  render();
+  const syncNote = wholeTable
+    ? (titleText ? ('标题已同步：' + titleText) : '标题已清空 · 角标已同步')
+    : '';
+  showPasteTip(state.rows.length, state.cols.length, filled, syncNote);
+}
+
+const PASTE_HINT_DEFAULT = '📋 支持从 Excel / WPS / Numbers 复制整块数据，点任意单元格按 <b>Ctrl+V</b> 粘贴：自动识别标题 / 列名 / 行名 / 合并表头（双层），自动扩行扩列；可一键撤销';
+
+// 粘贴结果：底部固定条，永不自动消失（滚到哪都点得到撤销），直到撤销或手动关闭
+function showPasteTip(rows, cols, filled, syncNote){
+  let bar = document.getElementById('pasteUndoBar');
+  if(!bar){
+    bar = document.createElement('div');
+    bar.id = 'pasteUndoBar';
+    document.body.appendChild(bar);
+  }
+  bar.innerHTML = '<span>✅ 已粘贴 <b>' + rows + ' 行 × ' + cols + ' 列</b>，填入 ' + filled + ' 个数值</span>'
+    + (syncNote ? '<span class="sync-tag">' + escHTML(syncNote) + '</span>' : '')
+    + '<button class="undo-btn" onclick="undoPaste()">撤销</button>'
+    + '<button class="x-btn" onclick="hidePasteTip()" title="关闭">×</button>';
+  bar.classList.add('show');
+}
+
+function restorePasteHint(){
+  const hint = document.querySelector('.paste-hint');
+  if(hint) hint.innerHTML = PASTE_HINT_DEFAULT;
+}
+
+function hidePasteTip(){
+  const bar = document.getElementById('pasteUndoBar');
+  if(bar) bar.classList.remove('show');
+}
+
+function undoPaste(){
+  if(!pasteUndo) return;
+  const saved = JSON.parse(pasteUndo);
+  pasteUndo = null;
+  state.pageTitle    = saved.pageTitle;
+  state.cornerLabel  = saved.cornerLabel;
+  state.note         = saved.note;
+  state.cols         = saved.cols;
+  state.rows         = saved.rows;
+  state.sort         = saved.sort;
+  state.showCrown    = saved.showCrown;
+  state.showGold     = saved.showGold;
+  document.getElementById('pageTitle').value   = state.pageTitle;
+  document.getElementById('cornerLabel').value = state.cornerLabel;
+  document.getElementById('noteText').value    = state.note;
+  document.getElementById('toggleCrown').checked = state.showCrown;
+  document.getElementById('toggleGold').checked  = state.showGold;
+  hidePasteTip();
   render();
 }
 
@@ -437,6 +768,7 @@ function buildStyleBlock(skin, bar){
     .table-root{${varStyle}font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--text);}
     table{border-collapse:collapse;width:100%;min-width:860px;font-size:13px;table-layout:auto;}
     th{text-align:center;padding:8px;border-bottom:1px solid var(--th-border);color:var(--th);font-weight:500;}
+    thead tr.group-row th{padding:5px 6px;font-size:12px;font-weight:600;}
     th:first-child{text-align:left;}
     td{padding:8px;vertical-align:middle;border-bottom:1px solid var(--td-border);}
     td:first-child{font-weight:600;white-space:nowrap;}
@@ -452,6 +784,7 @@ function buildStyleBlock(skin, bar){
     .down{background:var(--down-bg);color:var(--down-fg);}
     .crown{font-size:12px;margin-left:4px;filter:drop-shadow(0 0 2px rgba(0,0,0,.15));}
     .note{margin-top:10px;font-size:12px;color:var(--note);}
+.paste-hint{margin:0 0 10px;padding:10px 14px;border-radius:8px;font-size:12.5px;line-height:1.6;color:var(--text);background:rgba(0,201,183,0.10);border:1px solid rgba(0,201,183,0.35);}
 .preview-title{margin-bottom:12px;font-size:20px;font-weight:700;color:var(--text);line-height:1.3;}
   `;
 
@@ -592,7 +925,17 @@ function updatePreview(){
     modelRows.push({ name: r.name, isBase, cells: modelCells });
     return `<tr class="${cls}"><td>${escHTML(r.name)}</td>${cells}</tr>`;
   }).join('');
-  lastModel = { rows: modelRows, headers: state.cols.map(c=>c.name), corner: state.cornerLabel };
+  lastModel = { rows: modelRows, headers: state.cols.map(c=>c.name),
+                groups: state.cols.map(c=>(c.group||'').trim()), corner: state.cornerLabel };
+
+  const grouped = colHasGroup();
+  const grpRowHTML = grouped
+    ? `<tr class="group-row"><th rowspan="2">${escHTML(state.cornerLabel)}</th>${buildGroupSpans(state.cols)
+        .map(g=>`<th colspan="${g.count}">${g.name?escHTML(g.name):''}</th>`).join('')}</tr>`
+    : '';
+  const colHeadHTML = grouped
+    ? `<tr>${headCells}</tr>`
+    : `<tr><th>${escHTML(state.cornerLabel)}</th>${headCells}</tr>`;
 
   const tableHTML =
 `<table>
@@ -600,9 +943,7 @@ function updatePreview(){
     <col style="width:${firstColW}px">
     ${state.cols.map(()=>`<col>`).join('')}
   </colgroup>
-  <thead><tr>
-    <th>${escHTML(state.cornerLabel)}</th>${headCells}
-  </tr></thead>
+  <thead>${grpRowHTML}${colHeadHTML}</thead>
   <tbody>
 ${bodyRows}
   </tbody>
@@ -700,7 +1041,7 @@ function downloadTemplate(){
       pageTitle: state.pageTitle,
       cornerLabel: state.cornerLabel,
       note: state.note,
-      cols: state.cols.map(c=>({name:c.name, type:c.type})),
+      cols: state.cols.map(c=>({name:c.name, type:c.type, group:c.group||''})),
       rows: state.rows.map(r=>({name:r.name, v:r.v.map(()=>0)})),
       showCrown: state.showCrown,
       showGold: state.showGold
@@ -771,11 +1112,19 @@ function exportPNG(){
     ctx.textAlign = 'left';
   }
 
-  /* ---- 列宽：直接取实际 DOM 列宽，按画布总宽归一化（修复写死/近似） ---- */
-  const ths = table.querySelectorAll('thead th');
+  /* ---- 列宽：取实际 DOM 列宽并归一化。双层表头时 thead 的 th 数≠列数，改用 tbody 首行 td ---- */
+  const theadEl = table.querySelector('thead');
+  const headTrs = theadEl ? Array.from(theadEl.querySelectorAll('tr')) : [];
+  const isTwoTier = headTrs.length > 1;
   const colWidths = [];
   table.querySelectorAll('colgroup col').forEach(c=>colWidths.push(parseFloat(c.style.width)||0));
-  ths.forEach((th,i)=>{ if(!colWidths[i]) colWidths[i] = th.getBoundingClientRect().width; });
+  const firstTr = table.querySelector('tbody tr');
+  if(firstTr){
+    firstTr.querySelectorAll('td').forEach((td,i)=>{
+      const w = td.getBoundingClientRect().width;
+      if(w) colWidths[i] = w;
+    });
+  }
   const domTotal = colWidths.reduce((a,b)=>a+b,0);
   if(domTotal > 0 && Math.abs(domTotal - rect.width) > 1){
     const ratio = rect.width / domTotal;
@@ -787,14 +1136,41 @@ function exportPNG(){
     drawText(state.pageTitle, startX + 2, padding + titleH/2, FONT(700,20), col('--text'), 'left');
   }
 
-  /* ---- 表头 ---- */
-  const headerH = ths.length ? ths[0].getBoundingClientRect().height : 30;
+  /* ---- 表头（支持双层：上层合并分组 + 下层列名） ---- */
+  const headerH = theadEl ? theadEl.getBoundingClientRect().height : 30;
+  const groupH = isTwoTier && headTrs[0] ? headTrs[0].getBoundingClientRect().height : 0;
+  const colHeadH = Math.max(0, headerH - groupH);
   const headers = [lastModel.corner].concat(lastModel.headers);
+  const groups = lastModel.groups || [];
+
+  if(groupH > 0){
+    // 上层：按连续相同分组横跨多列，文字居中于整段
+    let gx = startX + (colWidths[0] || 0);
+    for(let j = 0; j < groups.length;){
+      let k = j;
+      while(k + 1 < groups.length && groups[k+1] === groups[j]) k++;
+      const gw = colWidths.slice(j+1, k+2).reduce((a,b)=>a+b, 0);
+      if(groups[j]){
+        drawText(groups[j], gx + gw/2, startY + groupH/2, FONT(600,12.5), col('--th'), 'center');
+        ctx.beginPath();
+        ctx.strokeStyle = col('--th-border');
+        ctx.lineWidth = 1;
+        ctx.moveTo(gx, startY + groupH);
+        ctx.lineTo(gx + gw, startY + groupH);
+        ctx.stroke();
+      }
+      gx += gw;
+      j = k + 1;
+    }
+  }
+
   let x = startX;
-  const headY = startY + headerH/2;
+  const headY = startY + groupH + colHeadH/2;
   headers.forEach((txt, j)=>{
     const w = colWidths[j];
-    drawText(txt, j===0 ? x+8 : x+w/2, headY,
+    // 左上角格双层时是 rowspan=2，垂直居中于整个表头
+    const ty = (j === 0 && groupH > 0) ? startY + headerH/2 : headY;
+    drawText(txt, j===0 ? x+8 : x+w/2, ty,
              FONT(500,13), col('--th'), j===0 ? 'left':'center');
     ctx.beginPath();
     ctx.strokeStyle = col('--th-border');
