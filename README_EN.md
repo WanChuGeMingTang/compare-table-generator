@@ -12,6 +12,8 @@ A pure front-end, zero-dependency, offline-capable comparison table generator. E
 
 **PC, phone, or tablet - all you need is a browser.** No install, no internet, no backend. Just double-click the HTML file. The responsive layout adapts to any screen width, and wide tables can be scrolled horizontally on phones.
 
+**📋 Paste table content directly**: copy straight from Excel, WPS, Numbers, Google Sheets, Tencent Docs, or any web table - bring the big title, a single header row, or a merged two-level header along with it. The tool automatically tells a "numbers-only fill" from a "whole-table import": a whole table restores titles / column names / row names and expands rows and columns, while plain numbers fill the focused cell. Paste by mistake? One-click undo.
+
 ## Features
 
 - **📋 Bulk paste**: copy a whole block from Excel / WPS / Numbers and press `Ctrl+V` on any cell - titles, column names and row names are detected automatically, and rows/columns expand as needed. No manual typing
@@ -105,7 +107,7 @@ Once you have configured a structure you use often, you do not need to set it up
 
 ### V1.1 (2026-11-18)
 
-- **New: bulk paste** - copy a whole block from Excel / WPS / Numbers and press `Ctrl+V`; titles, column names and row names are detected and rows/columns expand automatically
+- **New: bulk paste** - copy straight from Excel / WPS / Numbers / Google Sheets / Tencent Docs / web tables and press `Ctrl+V`; big titles, single header rows and merged two-level headers can be copied along with the data. It automatically tells a "numbers-only fill" from a "whole-table import", detects titles / column names / row names, and expands rows and columns
 - **New: merged two-level headers** - merged group headers copied from Excel become grouped columns, rendered consistently in the input area, live preview, PNG and exported page
 - **Header detection rewritten** - based on numeric density, tolerating a blank top-left cell, a column without a name, and numeric column names (2024 / 1660)
 - **Title rows no longer eat a header row** - a big title copied with the table is pulled out into the Page Title, and the Top-left Header follows the paste
