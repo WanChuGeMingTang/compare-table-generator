@@ -6,6 +6,8 @@
 
 一个纯前端、零依赖、可离线使用的对比表生成器。填入数值，自动生成带能量条、第一名高亮、相对涨跌百分比的对比表格，并可导出高清 PNG 图片或独立 HTML 网页。
 
+**⬇️ [下载最新版本（Releases）](https://github.com/WanChuGeMingTang/compare-table-generator/releases/latest)** · 单文件 HTML，双击即用
+
 ## 全端可用
 
 **PC、手机、平板，有浏览器就能用。** 无需安装、无需联网、无需后端——双击 HTML 文件即可打开。响应式布局适配各种屏幕宽度，手机上也能横向滑动查看宽表格。

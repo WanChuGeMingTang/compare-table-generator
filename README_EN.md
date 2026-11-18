@@ -6,6 +6,8 @@
 
 A pure front-end, zero-dependency, offline-capable comparison table generator. Enter your numbers and it automatically builds a table with energy bars, winner highlighting, and relative change percentages. Export it as a high-resolution PNG or a standalone HTML page.
 
+**⬇️ [Download the latest version (Releases)](https://github.com/WanChuGeMingTang/compare-table-generator/releases/latest)** · a single HTML file, just double-click it
+
 ## Works Everywhere
 
 **PC, phone, or tablet - all you need is a browser.** No install, no internet, no backend. Just double-click the HTML file. The responsive layout adapts to any screen width, and wide tables can be scrolled horizontally on phones.
