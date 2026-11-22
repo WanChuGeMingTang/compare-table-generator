@@ -162,10 +162,11 @@
 </div>
 
 <div class="panel">
-  <h3 style="margin-top:0">④ Winner Highlight Options</h3>
-  <label class="switch"><input type="checkbox" id="toggleCrown" checked> 👑 Show Crown</label>
+  <h3 style="margin-top:0">④ Display Options</h3>
+  <label class="switch"><input type="checkbox" id="toggleCrown" checked> 👑 Show Winner Crown</label>
   <label class="switch"><input type="checkbox" id="toggleGold" checked> 🟨 Show Gold Outline</label>
-  <span class="hint">Both can be toggled independently.</span>
+  <label class="switch"><input type="checkbox" id="toggleCompare" checked> 📊 Show Comparison Values</label>
+  <span class="hint">Three toggles; values auto-center when comparison is off.</span>
 </div>
 
 <div class="panel">
@@ -314,7 +315,8 @@ let state = {
   ],
   sort:{col:-1, dir:1},
   showCrown:true,
-  showGold:true
+  showGold:true,
+  showCompare:true
 };
 
 // Drawing data model filled during render: preview and PNG export share the same results,
@@ -332,8 +334,10 @@ nt.oninput = ()=>{ state.note = nt.value; updatePreview(); };
 /* ================= Highlight toggle bindings ================= */
 const tCrown = document.getElementById('toggleCrown');
 const tGold  = document.getElementById('toggleGold');
-tCrown.onchange = ()=>{ state.showCrown = tCrown.checked; updatePreview(); };
-tGold.onchange  = ()=>{ state.showGold  = tGold.checked;  updatePreview(); };
+const tCompare = document.getElementById('toggleCompare');
+tCrown.onchange   = ()=>{ state.showCrown   = tCrown.checked;   updatePreview(); };
+tGold.onchange    = ()=>{ state.showGold    = tGold.checked;    updatePreview(); };
+tCompare.onchange = ()=>{ state.showCompare = tCompare.checked; updatePreview(); };
 
 /* ================= Column management ================= */
 /* ---- Grouped header helpers (Excel merged cells) ---- */
@@ -541,6 +545,36 @@ function handleNumPaste(e){
 function applyPasteMatrix(M0, el){
   if(!M0 || !M0.length || !M0[0].length) return;
 
+  /* 剔除合并单元格产生的全空行（V1.2）
+     Excel 里左上角跨行跨列合并（如 A1:B2 合并）复制出来是"首行一格有值 + 次行全空"。
+     这个全空行会占掉一层表头名额、并让 detectHeaderRows 遇空即停返回 0，
+     导致真正的表头被当成数据、整表识别失败。标题识别之前先摘掉。 */
+  M0 = M0.filter(r => (r || []).some(c => String(c == null ? '' : c).trim() !== ''));
+  if(!M0.length) return;
+
+  /* 底部说明行自动识别（V1.2 beta）
+     Excel 表格底部常有一行说明：整行只有一个格子写了文字（长短句），其余全空。
+     若不剥离，它会被当成一行数据（数值全 0），且超长文字会把第一列宽度撑爆，
+     导致数值列被挤窄、数字被截断。这里在标题/表头识别之前摘出，并回填说明框。 */
+  let pastedNote = null;
+  if(M0.length >= 2){
+    const tail = M0[M0.length - 1];
+    const nonEmpty = (tail || []).filter(c => String(c == null ? '' : c).trim() !== '');
+    if(nonEmpty.length === 1){
+      const txt = String(nonEmpty[0]).trim();
+      // 文字内容（非纯数字）、且至少 2 个字符 —— 避免把单行型号名误判
+      if(txt.length >= 2 && isNaN(cleanCellNum(txt))){
+        const bodyMaxW = Math.max.apply(null, M0.slice(0, -1).map(r => (r || []).length));
+        // 说明行的格子数应明显少于表格主宽度（独占一格），避免误吃正常数据行
+        if((tail || []).length <= bodyMaxW){
+          pastedNote = txt;
+          M0 = M0.slice(0, -1);
+        }
+      }
+    }
+  }
+  if(!M0.length) return;
+
   /* Title row stripping (V1.1.2)
      Copying a whole sheet turns a cross-column merged title into one value plus empty cells.
      It must be removed before header detection, otherwise it eats one header row
@@ -615,7 +649,15 @@ function applyPasteMatrix(M0, el){
          Title: use the pasted title row when there is one, otherwise clear it (an old title must not sit above new data)
          Top-left header: follow the paste strictly, clear it when empty */
       state.pageTitle   = titleText || '';
-      state.cornerLabel = headerRow ? String(headerRow[0] == null ? '' : headerRow[0]).trim() : '';
+      /* V1.2 beta：左上角角标回退。合并单元格复制后，"型号"可能落在分组行首格，
+         而列名（单位）行首格为空。优先取列名行，空则回退分组行，兼容两层/单层表头。 */
+      const _cornerRaw = headerRow ? headerRow[0] : null;
+      const _groupRaw  = groupRow  ? groupRow[0]  : null;
+      state.cornerLabel = String((_cornerRaw == null ? '' : _cornerRaw) || (_groupRaw == null ? '' : _groupRaw)).trim();
+    }
+    if(pastedNote){
+      state.note = pastedNote;
+      document.getElementById('noteText').value = pastedNote;
     }
   }else{
     /* ---- Local fill: write right and down from the focused cell, growing rows and columns as needed ---- */
@@ -651,10 +693,17 @@ function applyPasteMatrix(M0, el){
   document.getElementById('pageTitle').value   = state.pageTitle;
   document.getElementById('cornerLabel').value = state.cornerLabel;
   render();
-  const syncNote = wholeTable
+  // 首屏字体可能尚未就绪，canvas.measureText 会算错第一列宽度，
+  // 导致数值列被挤窄、数字截断。延迟一帧重绘一次（等效于手动切一次开关）。
+  requestAnimationFrame(()=>{ try{ updatePreview(); }catch(e){} });
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(()=>{ try{ updatePreview(); }catch(e){} });
+  }
+  let syncNote = wholeTable
     ? (titleText ? ('Title synced: ' + titleText) : 'Title cleared · corner synced')
     : '';
   showPasteTip(state.rows.length, state.cols.length, filled, syncNote);
+  if(pastedNote) syncNote += (syncNote ? ' · ' : '') + '底部说明已识别';
 }
 
 const PASTE_HINT_DEFAULT = '📋 Paste a whole block from Excel / WPS / Numbers: click any cell and press <b>Ctrl+V</b> - titles, column names, row names and merged two-level headers are detected automatically, rows and columns expand as needed; one-click undo';
@@ -696,11 +745,13 @@ function undoPaste(){
   state.sort         = saved.sort;
   state.showCrown    = saved.showCrown;
   state.showGold     = saved.showGold;
+  state.showCompare  = (typeof saved.showCompare === 'boolean') ? saved.showCompare : true;
   document.getElementById('pageTitle').value   = state.pageTitle;
   document.getElementById('cornerLabel').value = state.cornerLabel;
   document.getElementById('noteText').value    = state.note;
   document.getElementById('toggleCrown').checked = state.showCrown;
   document.getElementById('toggleGold').checked  = state.showGold;
+  document.getElementById('toggleCompare').checked = state.showCompare;
   hidePasteTip();
   render();
 }
@@ -767,7 +818,7 @@ function buildStyleBlock(skin, bar){
     table{border-collapse:collapse;width:100%;min-width:860px;font-size:13px;table-layout:auto;}
     th{text-align:center;padding:8px;border-bottom:1px solid var(--th-border);color:var(--th);font-weight:500;}
     thead tr.group-row th{padding:5px 6px;font-size:12px;font-weight:600;}
-    th:first-child{text-align:left;}
+    thead tr:first-child th:first-child{text-align:left;}
     td{padding:8px;vertical-align:middle;border-bottom:1px solid var(--td-border);}
     td:first-child{font-weight:600;white-space:nowrap;}
     .val{display:flex;justify-content:space-between;align-items:center;font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap;margin-bottom:5px;}
@@ -898,10 +949,11 @@ function updatePreview(){
       const hasCrown = isColMax && state.showCrown;
       const hasGold  = isColMax && state.showGold;
       const crown = hasCrown ? '<span class="crown" title="Highest in column">👑</span>' : '';
-      const goldRing = hasGold ? 'box-shadow: inset 0 0 0 2px var(--gold);' : '';
+      // 金框四边统一内缩 3px：比 -2px 略分开，框底仍离能量条有余量
+      const goldRing = hasGold ? 'outline:2px solid var(--gold);outline-offset:-3px;' : '';
 
       let badge = '', badgeText = '', badgeUp = true;
-      if(!isBase){
+      if(!isBase && state.showCompare){
         const b = Number(base[j])||0;
         const pct = b===0 ? 0 : Math.round(val/b*100-100);
         badgeUp = pct>=0;
@@ -915,10 +967,16 @@ function updatePreview(){
 
       modelCells.push({ valText, badgeText, badgeUp, hasCrown, hasGold, pct:w, isBase });
 
-      const leftWrap = `<div style="display:flex;align-items:center"><span class="text-val">${valText}</span>${crown}</div>`;
+      // 关闭对比时数值必须严格居中：皇冠改为绝对定位挂在数值右侧，不占布局宽度
+      const crownHtml = hasCrown
+        ? `<span class="crown" title="该列最高"${
+            badge ? '' : ' style="position:absolute;left:100%;top:50%;transform:translateY(-50%);margin-left:2px"'
+          }>👑</span>` : '';
+      const leftWrap = `<div style="display:flex;align-items:center"><span class="text-val" style="position:relative">${valText}${crownHtml}</span></div>`;
       const rightWrap = badge ? `<div>${badge}</div>` : '';
+      const valJustify = badge ? '' : 'justify-content:center;';
 
-      return `<td class="${isColMax?'is-best':''}" style="${goldRing}"><div class="val">${leftWrap}${rightWrap}</div><div class="track">${barInner}</div></td>`;
+      return `<td class="${isColMax?'is-best':''}" style="${goldRing}"><div class="val" style="${valJustify}">${leftWrap}${rightWrap}</div><div class="track">${barInner}</div></td>`;
     }).join('');
     modelRows.push({ name: r.name, isBase, cells: modelCells });
     return `<tr class="${cls}"><td>${escHTML(r.name)}</td>${cells}</tr>`;
@@ -1040,7 +1098,8 @@ function downloadTemplate(){
       cols: state.cols.map(c=>({name:c.name, type:c.type, group:c.group||''})),
       rows: state.rows.map(r=>({name:r.name, v:r.v.map(()=>0)})),
       showCrown: state.showCrown,
-      showGold: state.showGold
+      showGold: state.showGold,
+      showCompare: state.showCompare
     },
     skin: currentSkin,
     bar: currentBar
@@ -1163,7 +1222,7 @@ function exportPNG(){
   let x = startX;
   const headY = startY + groupH + colHeadH/2;
   headers.forEach((txt, j)=>{
-    const w = colWidths[j];
+    const w = colWidths[j] || 100;   // 兜底：列宽缺失时不让 x 累加成 NaN
     // the corner cell spans 2 rows when grouped and is centered over the whole header
     const ty = (j === 0 && groupH > 0) ? startY + headerH/2 : headY;
     drawText(txt, j===0 ? x+8 : x+w/2, ty,
@@ -1183,6 +1242,7 @@ function exportPNG(){
   trEls.forEach((tr, ri)=>{
     const rowH = tr.getBoundingClientRect().height || 44;
     const mRow = lastModel.rows[ri];
+    const tds = tr.querySelectorAll('td');   // 预取一次，循环内不再重复查询
     let cellX = startX;
 
     for(let j=0;j<colWidths.length;j++){
@@ -1197,10 +1257,22 @@ function exportPNG(){
           const numY = rowY + rowH/2 - 6;
           ctx.font = FONT(600,13);
           ctx.fillStyle = col('--text');
-          ctx.textAlign = 'left';
-          let drawX = cellX + 12;
-          ctx.fillText(m.valText, drawX, numY);
           const fullWidth = ctx.measureText(m.valText).width;
+          const hasBadge = !!m.badgeText;
+          const crownW = m.hasCrown ? 19 : 0;   // 皇冠占宽，仅用于溢出保护
+          let drawX;
+          if(hasBadge){
+            drawX = cellX + 12;
+          }else{
+            drawX = cellX + (w - fullWidth)/2;
+            if(drawX < cellX + 6) drawX = cellX + 6;
+            // 数值+皇冠超宽时整体左移，保证皇冠不越出单元格
+            if(drawX + fullWidth + crownW + 8 > cellX + w){
+              drawX = Math.max(cellX + 6, cellX + w - 8 - fullWidth - crownW);
+            }
+          }
+          ctx.textAlign = 'left';
+          ctx.fillText(m.valText, drawX, numY);
 
           // Crown: draw emoji 👑 to match the preview
           if(m.hasCrown){
@@ -1224,7 +1296,7 @@ function exportPNG(){
           }
 
           // Energy bar: width taken from model percentage
-          const fillEl = tr.querySelectorAll('td')[j]?.querySelector('.fill, .lattice-fill, .dots-mask, .thin-fill');
+          const fillEl = tds[j] ? tds[j].querySelector('.fill, .lattice-fill, .dots-mask, .thin-fill') : null;
           if(fillEl){
             const barH = (currentBar === 'thin') ? 4 : 10;
             const barY = rowY + rowH - 16;
@@ -1267,11 +1339,11 @@ function exportPNG(){
             }
           }
 
-          // Gold outline: from model, not boxShadow string matching
+          // Gold outline: from model, 3px inset on all sides (matches CSS outline-offset:-3px)
           if(m.hasGold){
             ctx.strokeStyle = col('--gold');
             ctx.lineWidth = 2;
-            ctx.strokeRect(cellX+1, rowY+1, w-2, rowH-2);
+            ctx.strokeRect(cellX+3, rowY+3, w-6, rowH-6);
           }
         }
       }
@@ -1352,6 +1424,7 @@ function exportPNG(){
     if(typeof s.note==='string') state.note = s.note;
     if(typeof s.showCrown==='boolean') state.showCrown = s.showCrown;
     if(typeof s.showGold==='boolean') state.showGold = s.showGold;
+    if(typeof s.showCompare==='boolean') state.showCompare = s.showCompare;
     if(SKINS[preset.skin]) currentSkin = preset.skin;
     if(['classic','lattice','dots','glow','thin'].includes(preset.bar)) currentBar = preset.bar;
   }
@@ -1362,6 +1435,7 @@ cl.value = state.cornerLabel;
 nt.value = state.note;
 tCrown.checked = state.showCrown;
 tGold.checked = state.showGold;
+tCompare.checked = state.showCompare;
 // Sync skin/bar active state (templates may carry their own style)
 document.body.classList.remove('skin-default','skin-dark','skin-business','skin-morandi');
 document.body.classList.add('skin-' + currentSkin);

@@ -105,6 +105,14 @@ Once you have configured a structure you use often, you do not need to set it up
 
 ## Changelog
 
+### V1.2 (2026-11-22)
+
+- **More reliable header detection** - merged two-level headers pasted from Excel are now recognized correctly, including the top-left corner label.
+- **New "Show Comparison Values" toggle** - hide values and percentages with one click; values auto-center when hidden. "Show Crown" is renamed to "Show Winner Crown".
+- **Auto-detected footer note** - footer text pasted from Excel goes into the note field instead of being read as a data row.
+- **Cleaner winner outline** - the gold outline no longer touches neighboring cells.
+- **Export and template fixes** - numbers are no longer truncated in some exports; templates now remember the toggle state.
+
 ### V1.1 (2026-11-18)
 
 - **New: bulk paste** - copy straight from Excel / WPS / Numbers / Google Sheets / Tencent Docs / web tables and press `Ctrl+V`; big titles, single header rows and merged two-level headers can be copied along with the data. It automatically tells a "numbers-only fill" from a "whole-table import", detects titles / column names / row names, and expands rows and columns
